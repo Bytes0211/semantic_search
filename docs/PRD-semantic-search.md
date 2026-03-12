@@ -48,9 +48,10 @@ These issues reduce productivity, increase operational friction, and lead to mis
 ### In Scope
 
 - Data ingestion from provided internal sources (CSV, SQL, JSON, API)
-- Embedding generation using AWS Bedrock or open‑source models
+- Embedding generation using AWS Bedrock, SageMaker, or open‑source models
 - Vector database setup (FAISS, Qdrant, or pgvector)
-- Semantic search API or CLI tool
+- Semantic search REST API and CLI tool (shared client library)
+- Optional caching layer (Redis/ElastiCache) for frequent queries
 - Basic UI (optional, depending on tier)
 - Documentation + deployment instructions
 
@@ -58,8 +59,9 @@ These issues reduce productivity, increase operational friction, and lead to mis
 
 - Full enterprise search platform
 - Multi‑tenant architecture
-- Real‑time streaming ingestion
 - Data cleaning beyond light normalization
+
+> **Note:** Near‑real‑time streaming ingestion is available as an optional configuration (`var.ingestion_mode = "stream"`), but the default and recommended mode is scheduled batch processing.
 
 ---
 
@@ -79,9 +81,11 @@ These issues reduce productivity, increase operational friction, and lead to mis
 - Ability to ingest structured/semi‑structured data
 - Generate embeddings for text fields
 - Store embeddings in a vector index
-- Expose a semantic search interface (API or CLI)
-- Rank results by similarity score
+- Expose a semantic search interface (REST API and CLI via shared client library)
+- Rank results by cosine similarity with optional cross‑encoder re‑ranking
+- Support result pagination
 - Support filters (e.g., date, category, tags)
+- Support idempotent upserts and blue/green index swaps for re‑indexing
 - Provide logs for search queries and performance
 
 ---
@@ -90,7 +94,7 @@ These issues reduce productivity, increase operational friction, and lead to mis
 
 - **Performance:** Sub‑second search for typical datasets
 - **Scalability:** Handle up to millions of records
-- **Security:** No external data sharing; all processing local or in client’s AWS
+- **Security:** No external data sharing; all processing local or in client's AWS. IAM‑authenticated API Gateway or ALB with mTLS/VPC access restrictions. Private subnets for data and search tiers with optional VPC endpoints for Bedrock/SageMaker. CloudTrail audit logging of API usage.
 - **Reliability:** Graceful fallback if embedding model fails
 - **Maintainability:** Modular codebase with clear configuration
 
@@ -100,13 +104,14 @@ These issues reduce productivity, increase operational friction, and lead to mis
 
 ### Components
 
-- **Data Loader:** Pulls data from SQL, CSV, API
-- **Preprocessor:** Normalizes text fields
-- **Embedding Generator:** Bedrock (Titan/Claude) or open‑source model
+- **Data Loader:** Pulls data from SQL, CSV, JSON, API
+- **Preprocessor:** Normalizes text fields, field selection, and chunking
+- **Embedding Generator:** Bedrock (Titan/Claude), SageMaker, or open‑source model (e.g., SentenceTransformers on Spot)
 - **Vector Store:** FAISS, Qdrant, or pgvector
-- **Search Engine:** Similarity search + ranking
-- **API Layer:** Optional REST endpoint
-- **Monitoring:** Basic logs + query stats
+- **Search Engine:** Cosine similarity search + ranking with optional cross‑encoder re‑ranking
+- **API Layer:** REST API and CLI (shared client library); optional lightweight UI
+- **Caching:** Optional Redis/ElastiCache for frequent queries
+- **Monitoring:** Centralized structured logs (JSON), query metrics, SLO alerts
 
 ### Data Flow
 
@@ -122,12 +127,15 @@ These issues reduce productivity, increase operational friction, and lead to mis
 
 ## Tech Stack
 
-- **AWS Bedrock** (embeddings)
 - **Python** (pipeline + API)
-- **LangChain** (optional orchestration)
+- **AWS Bedrock** / **SageMaker** / **SentenceTransformers** (embeddings)
 - **Vector DB:** FAISS / Qdrant / pgvector
-- **AWS Lambda / ECS** (deployment options)
+- **Terraform** (modular infrastructure‑as‑code)
+- **AWS ECS/Fargate / Lambda** (deployment options, toggled via `var.search_runtime`)
 - **S3** (storage)
+- **Redis / ElastiCache** (optional caching)
+- **Dagster / Airflow‑lite** (ingestion orchestration)
+- **LangChain** (optional orchestration)
 
 ---
 

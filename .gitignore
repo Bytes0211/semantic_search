@@ -1,2 +1,57 @@
-
+# ----- Project -----
 developer/
+github/
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+
+# ----- Testing & Coverage -----
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# ----- IDE & Editors -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ----- Terraform -----
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+crash.log
+
+# ----- AWS & Secrets -----
+.aws/
+*.pem
+*.env
+.env.*
+!.env.example
+
+# ----- Data & Models -----
+*.faiss
+*.pkl
+*.npy
+*.parquet
+data/
+models/
