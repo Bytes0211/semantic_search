@@ -125,9 +125,20 @@ A single Docker image is used for the search application, reused across both run
 - Documentation enables client to re-index new data
 - Deployment validated in client environment
 
+## Phase Markers
+### Phase 0 — Planning & Alignment
+- Align on goals, success criteria, and scope boundaries using `docs/PRD-semantic-search.md` as the source of truth.
+- Record architectural and modular requirements in `developer/technical_approach.md`, `README.md`, and `AGENTS.md`.
+- Establish documentation checkpoints and governance for future phase handoffs.
+
+### Phase 1 — Foundation & Infrastructure
+- ✅ Scaffolded Terraform module directories (`core_network`, `data_plane`, `vector_store`, `search_service_*`, `embedding_*`, `observability`, `shared`) with initial responsibilities captured in module READMEs.
+- ✅ Defined configuration toggles (`var.search_runtime`, `var.embedding_backend`, `var.ingestion_mode`) with trade-offs and published toggle guidance + tfvars examples in `infrastructure/README.md`.
+- ✅ Authored the reusable container build/deploy pipeline (`developer/container_pipeline.md`) supporting both ECS/Fargate and Lambda runtimes.
+
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
-2. **Build Application Skeleton** — establish provider interfaces, ingestion pipeline, search API baseline
+2. **Build Application Skeleton** — establish provider interfaces, ingestion pipeline, and search API baseline
 3. **Integrate Embedding Providers** — implement adapters, add integration tests, document setup steps
 4. **Implement Deployment Profiles** — default Fargate runtime with Lambda alternative; provide deployment recipes
 5. **Performance Validation** — relevance evaluation suite and latency benchmarks for both runtimes
