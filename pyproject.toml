@@ -1,7 +1,7 @@
 [project]
 name = "semantic-search"
 version = "0.1.0"
-description = "Add your description here"
+description = "A LLM‑powered embeddings, vector search, and lightweight retrieval pipelines** to transform internal data into a searchable knowledge layer."
 readme = "README.md"
 requires-python = ">=3.12.12"
 dependencies = []

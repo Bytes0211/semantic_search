@@ -6,6 +6,30 @@ A semantic search system that uses LLM-powered embeddings and vector search to e
 
 Organizations store valuable information across databases, CRMs, spreadsheets, and legacy systems but rely on keyword-only search that fails to surface relevant insights. This leads to poor search accuracy, slow manual review, and missed connections across data sources.
 
+```mermaid
+sequenceDiagram
+    participant DS as Data Sources<br/>(CSV/SQL/JSON/API)
+    participant ING as Ingestion Layer
+    participant PRE as Preprocessing
+    participant EMB as Embedding Provider<br/>(Bedrock/Spot/SageMaker)
+    participant VDB as Vector Store<br/>(FAISS/Qdrant/pgvector)
+    participant API as Search Service<br/>(Fargate or Lambda)
+    participant CLI as Client<br/>(REST/CLI/UI)
+
+    DS->>ING: Raw records
+    ING->>PRE: Canonical records → S3
+    PRE->>EMB: Cleaned text fields
+    EMB->>VDB: Vectors + metadata (upsert)
+    EMB->>VDB: Write to S3 (backup)
+    CLI->>API: Natural-language query
+    API->>EMB: Embed query
+    EMB-->>API: Query vector
+    API->>VDB: Approximate nearest-neighbour search
+    VDB-->>API: Top-K results (cosine similarity)
+    API-->>CLI: Ranked results (+ optional re-ranking)
+
+```
+
 ## Key Features
 
 - **Natural-language search** across CSV, SQL, JSON, and API data sources
@@ -24,7 +48,7 @@ Data Sources → Ingestion → Preprocessing → Embedding → Vector Store → 
                                            SageMaker)
 ```
 
-See `developer/technical_approach.md` for the full technical design and `docs/PRD-semantic-search.md` for the product requirements.
+See `docs/PRD-semantic-search.md` for the product requirements.
 
 ## Tech Stack
 

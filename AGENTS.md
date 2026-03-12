@@ -142,4 +142,6 @@ A single Docker image is used for the search application, reused across both run
 ## Scope Boundaries
 **In scope:** Data ingestion, embedding generation, vector storage, semantic search API/CLI, documentation, optional UI and AWS deployment.
 
-**Out of scope:** Full enterprise search platform, multi-tenant architecture, real-time streaming ingestion, deep data cleaning.
+**Out of scope:** Full enterprise search platform, multi-tenant architecture, deep data cleaning.
+
+> **Note:** Near-real-time streaming ingestion is available as an optional configuration (`var.ingestion_mode = "stream"`), but the default and recommended mode is scheduled batch processing.
