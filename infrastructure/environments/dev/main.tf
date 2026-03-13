@@ -306,8 +306,8 @@ variable "default_az_count" {
 
 variable "enable_flow_logs" {
   type        = bool
-  description = "Whether to enable VPC flow logs."
-  default     = true
+  description = "Whether to enable VPC flow logs. Requires flow_log_destination_arn (and flow_log_iam_role_arn for CloudWatch Logs) when true."
+  default     = false
 }
 
 variable "flow_log_destination_type" {

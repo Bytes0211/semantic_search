@@ -165,6 +165,10 @@ resource "aws_flow_log" "this" {
       condition     = var.flow_log_destination_arn != ""
       error_message = "flow_log_destination_arn must be set when enable_flow_logs is true."
     }
+    precondition {
+      condition     = var.flow_log_destination_type != "cloud-watch-logs" || var.flow_log_iam_role_arn != ""
+      error_message = "flow_log_iam_role_arn must be set when flow_log_destination_type is cloud-watch-logs."
+    }
   }
 
   tags = merge(local.common_tags, {
