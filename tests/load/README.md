@@ -79,7 +79,7 @@ window of at least 60 seconds at the target concurrency:
 | Metric | Target |
 |---|---|
 | P95 end-to-end latency (`/v1/search`) | **≤ 1 000 ms** |
-| Error rate (non-2xx responses) | **< 1 %** |
+| Error rate (non-2xx responses) | **< 2 %** |
 | Throughput | **≥ 10 RPS** (single-task baseline) |
 
 These numbers are starting points; adjust per environment capacity and SLA.

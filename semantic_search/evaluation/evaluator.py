@@ -133,7 +133,7 @@ class RelevanceEvaluator:
             query_text=query.query_text,
             top_k=query.top_k,
             returned_ids=returned_ids,
-            relevant_ids=list(relevant),
+            relevant_ids=list(query.relevant_ids),
             hit=hit_rate(returned_ids, relevant),
             reciprocal_rank=reciprocal_rank(returned_ids, relevant),
             precision_at_k=precision_at_k(returned_ids, relevant),
