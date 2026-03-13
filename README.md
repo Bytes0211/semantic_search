@@ -54,7 +54,9 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 
 - **Phase 0 — Planning & Alignment:** Complete. Goals, scope, and architectural direction are captured in the PRD, technical approach, and agent guidelines.
 - **Phase 1 — Foundation & Infrastructure:** Complete. Terraform scaffolding, runtime/embedding toggles, and container pipeline documentation are in place, enabling Phase 2 ingestion work.
-- **Next:** Implement Phase 2 ingestion connectors and canonical schema pipeline using the documented infrastructure toggles.
+- **Phase 2 — Data Ingestion Layer:** Complete. Pluggable connectors, canonical schema normalisation, and ingestion observability are in place to supply embedding pipelines.
+- **Phase 3 — Embedding & Vector Services:** Complete. Bedrock, Spot, and SageMaker adapters implemented; NumPy vector store with cosine/L2/inner-product metrics, persistence, and idempotent upserts delivered; end-to-end embedding pipeline wired; 40 tests passing.
+- **Next:** Implement Phase 4 — Search Runtime & Interfaces (REST API, CLI, Fargate/Lambda deployment).
 
 ## Tech Stack
 
@@ -79,10 +81,13 @@ git clone <repo-url>
 cd semantic-search
 
 # Install dependencies
-pip install -e .
+uv sync
+
+# Run tests
+uv run pytest
 
 # Run
-python main.py
+uv run python main.py
 ```
 
 ## Project Structure
@@ -91,13 +96,24 @@ python main.py
 .
 ├── main.py                  # Application entry point
 ├── pyproject.toml           # Project metadata and dependencies
+├── semantic_search/
+│   ├── embeddings/          # Provider interface, Bedrock/Spot/SageMaker adapters, factory
+│   ├── pipeline/            # EmbeddingPipeline (provider → vector store → S3)
+│   └── vectorstores/        # NumpyVectorStore (L2, cosine, inner-product)
+├── tests/
+│   ├── embeddings/          # Unit tests for all embedding providers
+│   ├── pipeline/            # Embedding pipeline tests
+│   └── vectorstores/        # Vector store tests
 ├── docs/
-│   └── PRD-semantic-search.md   # Product requirements document
+│   ├── PRD-semantic-search.md
+│   └── process_flows/       # End-to-end process diagrams (01–06)
 ├── developer/
-│   ├── technical_approach.md    # Technical design document
-│   ├── project_status.md        # Phase tracking and next actions
-│   ├── container_pipeline.md    # Shared build/deploy workflow
-│   └── process-flow.md          # End-to-end process diagrams
+│   ├── technical_approach.md
+│   ├── project_status.md
+│   ├── container_pipeline.md
+│   └── developer-journal.md
+├── infrastructure/          # Terraform modules and dev environment
+├── github/                  # ISSUES and PRs tracking docs
 ├── AGENTS.md                # Agent coding guidelines and project context
 └── README.md
 ```
