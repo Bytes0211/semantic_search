@@ -42,6 +42,8 @@ The system is composed of seven layers:
 - **Caching:** Redis / ElastiCache (optional, for frequent queries)
 
 ## Infrastructure Modules (Terraform)
+> **Recommendation:** If you don't have a known consumer pinned below 1.9, bumping to `>= 1.9.0` is reasonable. It simplifies validation patterns and the old floor is nearly two years behind. If you're unsure about downstream consumers, you could bump to `>= 1.9.0` in `environments/dev/` (which you control) and leave the module constraint at `>= 1.5.0` so the modules stay reusable.
+
 - `modules/core_network` — VPC, subnets, security groups
 - `modules/data_plane` — S3 buckets, ingestion queues, batch orchestration
 - `modules/vector_store` — Parameterized for FAISS, Qdrant, or pgvector
