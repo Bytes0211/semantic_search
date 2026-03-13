@@ -169,6 +169,18 @@ def test_unparseable_json_raises(monkeypatch: pytest.MonkeyPatch) -> None:
         provider.generate([EmbeddingInput(record_id="r6", text="boom")])
 
 
+def test_empty_embeddings_list_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty 'embeddings' list should raise immediately with a clear error."""
+    monkeypatch.setattr(
+        "semantic_search.embeddings.sagemaker.boto3.Session",
+        _make_mock_session({"embeddings": []}),
+    )
+
+    provider = SageMakerEmbeddingProvider(endpoint_name="empty-embeddings")
+    with pytest.raises(SageMakerInvocationError, match="empty 'embeddings' list"):
+        provider.generate([EmbeddingInput(record_id="r-empty", text="test")])
+
+
 def test_unknown_dict_keys_raise(monkeypatch: pytest.MonkeyPatch) -> None:
     """A dict response without 'embedding' or 'embeddings' should raise."""
     monkeypatch.setattr(

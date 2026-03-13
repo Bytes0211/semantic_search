@@ -228,7 +228,11 @@ class SageMakerEmbeddingProvider(EmbeddingProvider):
                 vector = payload["embedding"]
             elif "embeddings" in payload:
                 emb = payload["embeddings"]
-                vector = emb[0] if isinstance(emb, list) and emb else emb
+                if isinstance(emb, list) and not emb:
+                    raise SageMakerInvocationError(
+                        "SageMaker returned empty 'embeddings' list"
+                    )
+                vector = emb[0] if isinstance(emb, list) else emb
             else:
                 raise SageMakerInvocationError(
                     "SageMaker response dict missing 'embedding' or 'embeddings' key"
