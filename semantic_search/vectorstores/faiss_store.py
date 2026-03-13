@@ -138,7 +138,10 @@ class NumpyVectorStore:
             ValueError: If any vector's dimensionality does not match
                 :attr:`dimension`.
         """
-        self.add(records)
+        for record in records:
+            vector = self._coerce_vector(record.vector)
+            self._vectors[record.record_id] = vector
+            self._metadata[record.record_id] = dict(record.metadata)
 
     def delete(self, record_ids: Iterable[str]) -> None:
         """Remove records from the store by ID.
@@ -207,10 +210,10 @@ class NumpyVectorStore:
 
         Writes two files:
 
-        - ``vectors.npy`` — NumPy archive containing record IDs and the
-          vector matrix.
-        - ``metadata.json`` — JSON file containing record metadata, the
-          dimension, and the metric name.
+        - ``vectors.npy`` — Plain float32 matrix of shape ``(n, dimension)``.
+          No pickle is used; the file contains only numeric data.
+        - ``metadata.json`` — JSON file containing record IDs (in row order),
+          record metadata, the dimension, and the metric name.
 
         Args:
             path: Directory path to write files into. Created if absent.
@@ -219,19 +222,17 @@ class NumpyVectorStore:
         vectors_path = os.path.join(path, "vectors.npy")
         meta_path = os.path.join(path, "metadata.json")
 
-        np.save(
-            vectors_path,
-            {
-                "ids": list(self._vectors.keys()),
-                "vectors": np.vstack(list(self._vectors.values()))
-                if self._vectors
-                else np.empty((0, self._dimension)),
-            },
-            allow_pickle=True,
+        ids = list(self._vectors.keys())
+        matrix = (
+            np.vstack(list(self._vectors.values()))
+            if self._vectors
+            else np.empty((0, self._dimension), dtype=np.float32)
         )
+        np.save(vectors_path, matrix)
         with open(meta_path, "w", encoding="utf-8") as handle:
             json.dump(
                 {
+                    "ids": ids,
                     "metadata": self._metadata,
                     "dimension": self._dimension,
                     "metric": self._metric_name,
@@ -260,7 +261,7 @@ class NumpyVectorStore:
         if not os.path.exists(vectors_path) or not os.path.exists(meta_path):
             raise VectorStoreError(f"Missing vector store files in {path!r}")
 
-        payload = np.load(vectors_path, allow_pickle=True).item()
+        matrix = np.load(vectors_path, allow_pickle=False)
         with open(meta_path, "r", encoding="utf-8") as handle:
             metadata_blob = json.load(handle)
 
@@ -268,9 +269,8 @@ class NumpyVectorStore:
         metric = metadata_blob["metric"]
         store = cls(dimension=dimension, metric=metric)
 
-        vectors = payload["vectors"]
-        ids = payload["ids"]
-        for record_id, vector in zip(ids, vectors):
+        ids = metadata_blob["ids"]
+        for record_id, vector in zip(ids, matrix):
             store._vectors[str(record_id)] = np.asarray(vector, dtype=np.float32)
         store._metadata = {str(k): v for k, v in metadata_blob["metadata"].items()}
         return store

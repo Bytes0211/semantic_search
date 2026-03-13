@@ -228,38 +228,71 @@ class EmbeddingPipeline:
     def _backup_to_s3(self) -> None:
         """Serialise the vector store to a temp directory and upload to S3.
 
-        Saves ``vectors.npy`` and ``metadata.json`` produced by
-        :meth:`~..vectorstores.faiss_store.NumpyVectorStore.save` and uploads
-        each file to ``s3://<s3_bucket>/<s3_prefix>/<filename>``.
+        Uses a two-phase upload to avoid leaving S3 in an inconsistent state
+        on partial failure:
+
+        1. Both ``vectors.npy`` and ``metadata.json`` are uploaded to a
+           timestamped staging prefix
+           (``<s3_prefix>/<timestamp>/``).
+        2. Only after both uploads succeed is a ``<s3_prefix>/latest`` pointer
+           key written (a single ``PUT``) containing the timestamp.  Consumers
+           resolve the live backup by reading this pointer first.
+
+        If either upload in step 1 raises, the pointer is never written and
+        the previous live backup remains intact.
 
         Raises:
-            RuntimeError: If the S3 upload fails (wraps the underlying
+            RuntimeError: If any S3 operation fails (wraps the underlying
                 boto3 exception with context).
         """
         import boto3  # local import — only needed when S3 backup is active
+        import datetime
 
         client = self._s3_client or boto3.client("s3")
+        timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
+        staging_prefix = (
+            f"{self._s3_prefix}/{timestamp}" if self._s3_prefix else timestamp
+        )
+        pointer_key = (
+            f"{self._s3_prefix}/latest" if self._s3_prefix else "latest"
+        )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             self._store.save(tmp_dir)
 
+            # Phase 1 — upload both files to the timestamped staging prefix.
             for filename in ("vectors.npy", "metadata.json"):
                 local_path = os.path.join(tmp_dir, filename)
-                s3_key = (
-                    f"{self._s3_prefix}/{filename}"
-                    if self._s3_prefix
-                    else filename
-                )
+                s3_key = f"{staging_prefix}/{filename}"
                 try:
                     client.upload_file(local_path, self._s3_bucket, s3_key)
                     LOGGER.info(
-                        "Uploaded %s to s3://%s/%s",
+                        "Staged %s to s3://%s/%s",
                         filename,
                         self._s3_bucket,
                         s3_key,
                     )
                 except Exception as exc:  # noqa: BLE001
                     raise RuntimeError(
-                        f"Failed to upload {filename} to "
+                        f"Failed to stage {filename} to "
                         f"s3://{self._s3_bucket}/{s3_key}: {exc}"
                     ) from exc
+
+            # Phase 2 — both uploads succeeded; atomically promote via pointer.
+            try:
+                client.put_object(
+                    Bucket=self._s3_bucket,
+                    Key=pointer_key,
+                    Body=timestamp.encode(),
+                )
+                LOGGER.info(
+                    "Promoted backup: s3://%s/%s -> %s",
+                    self._s3_bucket,
+                    pointer_key,
+                    staging_prefix,
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(
+                    f"Failed to write latest pointer to "
+                    f"s3://{self._s3_bucket}/{pointer_key}: {exc}"
+                ) from exc

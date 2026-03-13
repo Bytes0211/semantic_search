@@ -147,7 +147,7 @@ def test_rerun_updates_vectors() -> None:
 
 
 def test_s3_backup_uploads_both_files(tmp_path: Any) -> None:
-    """When s3_bucket is set, upload_file should be called for both store files."""
+    """Both store files are staged and a latest pointer is written on success."""
     mock_s3 = MagicMock()
     pipeline, _ = _make_pipeline(s3_bucket="my-bucket", s3_client=mock_s3)
 
@@ -160,6 +160,12 @@ def test_s3_backup_uploads_both_files(tmp_path: Any) -> None:
     assert "vectors.npy" in uploaded_filenames
     assert "metadata.json" in uploaded_filenames
     assert mock_s3.upload_file.call_count == 2
+
+    # Pointer written exactly once after both uploads succeed
+    mock_s3.put_object.assert_called_once()
+    pointer_call = mock_s3.put_object.call_args
+    assert pointer_call.kwargs["Bucket"] == "my-bucket"
+    assert pointer_call.kwargs["Key"].endswith("/latest")
 
 
 def test_s3_backup_uses_correct_bucket_and_prefix(tmp_path: Any) -> None:
@@ -179,7 +185,12 @@ def test_s3_backup_uses_correct_bucket_and_prefix(tmp_path: Any) -> None:
     for call in mock_s3.upload_file.call_args_list:
         _, bucket, key = call.args
         assert bucket == "test-bucket"
+        # Files go to a timestamped subdirectory under the prefix
         assert key.startswith("embeddings/v1/")
+        assert key != "embeddings/v1/latest"  # staged, not the pointer
+
+    pointer_call = mock_s3.put_object.call_args
+    assert pointer_call.kwargs["Key"] == "embeddings/v1/latest"
 
 
 def test_no_s3_backup_when_bucket_is_none() -> None:
@@ -190,3 +201,16 @@ def test_no_s3_backup_when_bucket_is_none() -> None:
     pipeline.run(_make_inputs(3))
 
     mock_s3.upload_file.assert_not_called()
+    mock_s3.put_object.assert_not_called()
+
+
+def test_s3_backup_pointer_not_written_on_upload_failure() -> None:
+    """If the first upload fails, the latest pointer must not be written."""
+    mock_s3 = MagicMock()
+    mock_s3.upload_file.side_effect = OSError("network error")
+    pipeline, _ = _make_pipeline(s3_bucket="my-bucket", s3_client=mock_s3)
+
+    with pytest.raises(RuntimeError, match="Failed to stage"):
+        pipeline.run(_make_inputs(2))
+
+    mock_s3.put_object.assert_not_called()
