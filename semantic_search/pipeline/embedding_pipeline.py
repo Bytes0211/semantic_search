@@ -23,12 +23,17 @@ class PipelineResult:
         succeeded: Number of records successfully embedded and upserted.
         failed: Number of records that could not be processed.
         failed_ids: Record IDs of every failed input, in encounter order.
+        backup_error: Error message if the S3 backup failed after an otherwise
+            successful run, or ``None`` if the backup succeeded or was not
+            configured. The in-memory vector store is always in a consistent
+            state regardless of this field.
     """
 
     total: int
     succeeded: int
     failed: int
     failed_ids: List[str] = field(default_factory=list)
+    backup_error: Optional[str] = None
 
 
 class EmbeddingPipeline:
@@ -165,7 +170,15 @@ class EmbeddingPipeline:
         )
 
         if self._s3_bucket:
-            self._backup_to_s3()
+            try:
+                self._backup_to_s3()
+            except RuntimeError as exc:
+                LOGGER.error(
+                    "S3 backup failed; in-memory store is intact but backup was not written: %s",
+                    exc,
+                    exc_info=True,
+                )
+                result.backup_error = str(exc)
 
         return result
 

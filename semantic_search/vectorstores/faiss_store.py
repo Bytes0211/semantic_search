@@ -174,7 +174,11 @@ class NumpyVectorStore:
                 ``filter_fn`` eliminates candidates.
             filter_fn: Optional predicate applied to each candidate
                 :class:`QueryResult`. Only results for which the function
-                returns ``True`` are included in the output.
+                returns ``True`` are included in the output. Note: the
+                predicate is applied to the top ``k`` candidates by score;
+                pass a larger ``k`` if significant filtering is expected,
+                as the returned list may contain fewer than ``k`` entries
+                when many candidates are excluded.
 
         Returns:
             List of :class:`QueryResult` ordered by closeness to the query.
@@ -253,7 +257,10 @@ class NumpyVectorStore:
             vectors and metadata.
 
         Raises:
-            VectorStoreError: If either required file is missing in ``path``.
+            VectorStoreError: If either required file is missing, if
+                ``metadata.json`` is missing an expected key, or if the
+                number of IDs in ``metadata.json`` does not match the number
+                of rows in ``vectors.npy``.
         """
         vectors_path = os.path.join(path, "vectors.npy")
         meta_path = os.path.join(path, "metadata.json")
@@ -265,14 +272,25 @@ class NumpyVectorStore:
         with open(meta_path, "r", encoding="utf-8") as handle:
             metadata_blob = json.load(handle)
 
-        dimension = metadata_blob["dimension"]
-        metric = metadata_blob["metric"]
-        store = cls(dimension=dimension, metric=metric)
+        try:
+            dimension = metadata_blob["dimension"]
+            metric = metadata_blob["metric"]
+            ids = metadata_blob["ids"]
+            raw_metadata = metadata_blob["metadata"]
+        except KeyError as exc:
+            raise VectorStoreError(
+                f"Malformed metadata.json in {path!r}: missing key {exc}"
+            ) from exc
 
-        ids = metadata_blob["ids"]
+        if len(ids) != len(matrix):
+            raise VectorStoreError(
+                f"Corrupt store in {path!r}: {len(ids)} IDs but {len(matrix)} vectors"
+            )
+
+        store = cls(dimension=dimension, metric=metric)
         for record_id, vector in zip(ids, matrix):
             store._vectors[str(record_id)] = np.asarray(vector, dtype=np.float32)
-        store._metadata = {str(k): v for k, v in metadata_blob["metadata"].items()}
+        store._metadata = {str(k): v for k, v in raw_metadata.items()}
         return store
 
     # ------------------------------------------------------------------ #

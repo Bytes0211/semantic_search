@@ -243,7 +243,36 @@ def test_s3_backup_pointer_not_written_on_upload_failure() -> None:
     mock_s3.upload_file.side_effect = OSError("network error")
     pipeline, _ = _make_pipeline(s3_bucket="my-bucket", s3_client=mock_s3)
 
-    with pytest.raises(RuntimeError, match="Failed to stage"):
-        pipeline.run(_make_inputs(2))
+    result = pipeline.run(_make_inputs(2))
 
     mock_s3.put_object.assert_not_called()
+    assert result.backup_error is not None
+    assert "Failed to stage" in result.backup_error
+
+
+def test_s3_backup_failure_still_returns_pipeline_result() -> None:
+    """A backup failure must not suppress the PipelineResult from a successful embedding run."""
+    mock_s3 = MagicMock()
+    mock_s3.upload_file.side_effect = OSError("permission denied")
+    pipeline, store = _make_pipeline(s3_bucket="my-bucket", s3_client=mock_s3)
+    inputs = _make_inputs(5)
+
+    result = pipeline.run(inputs)
+
+    # Embeddings succeeded despite backup failure
+    assert result.total == 5
+    assert result.succeeded == 5
+    assert result.failed == 0
+    assert result.backup_error is not None
+    # Store is intact
+    assert len(store.query([0.0] * DIMENSION, k=10)) == 5
+
+
+def test_successful_backup_leaves_backup_error_as_none() -> None:
+    """backup_error is None when the S3 backup completes without error."""
+    mock_s3 = MagicMock()
+    pipeline, _ = _make_pipeline(s3_bucket="my-bucket", s3_client=mock_s3)
+
+    result = pipeline.run(_make_inputs(3))
+
+    assert result.backup_error is None

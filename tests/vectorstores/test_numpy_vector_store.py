@@ -90,6 +90,42 @@ def test_load_missing_files_raises(tmp_path) -> None:
         NumpyVectorStore.load(str(store_path))
 
 
+def test_load_malformed_metadata_raises(tmp_path) -> None:
+    """Missing keys in metadata.json should raise VectorStoreError, not KeyError."""
+    import json
+    import numpy as np
+
+    store_path = tmp_path / "bad_meta"
+    store_path.mkdir()
+    np.save(str(store_path / "vectors.npy"), np.empty((0, 2), dtype=np.float32))
+    # Write metadata.json without the required 'ids' key
+    (store_path / "metadata.json").write_text(
+        json.dumps({"dimension": 2, "metric": "l2", "metadata": {}})
+    )
+
+    with pytest.raises(VectorStoreError, match="missing key"):
+        NumpyVectorStore.load(str(store_path))
+
+
+def test_load_id_vector_count_mismatch_raises(tmp_path) -> None:
+    """Mismatched IDs vs vector rows should raise VectorStoreError, not silently truncate."""
+    import json
+    import numpy as np
+
+    store_path = tmp_path / "mismatch"
+    store_path.mkdir()
+    # 3 vectors, only 1 ID
+    np.save(str(store_path / "vectors.npy"), np.ones((3, 2), dtype=np.float32))
+    (store_path / "metadata.json").write_text(
+        json.dumps(
+            {"ids": ["a"], "dimension": 2, "metric": "l2", "metadata": {"a": {}}}
+        )
+    )
+
+    with pytest.raises(VectorStoreError, match="1 IDs but 3 vectors"):
+        NumpyVectorStore.load(str(store_path))
+
+
 def test_invalid_dimension_raises() -> None:
     store = NumpyVectorStore(dimension=3)
     with pytest.raises(ValueError):
