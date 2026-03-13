@@ -289,7 +289,13 @@ class NumpyVectorStore:
 
         store = cls(dimension=dimension, metric=metric)
         for record_id, vector in zip(ids, matrix):
-            store._vectors[str(record_id)] = np.asarray(vector, dtype=np.float32)
+            arr = np.asarray(vector, dtype=np.float32)
+            if arr.shape != (dimension,):
+                raise VectorStoreError(
+                    f"Corrupt store in {path!r}: expected vector shape "
+                    f"({dimension},), got {arr.shape} for record {record_id!r}"
+                )
+            store._vectors[str(record_id)] = arr
         store._metadata = {str(k): v for k, v in raw_metadata.items()}
         return store
 

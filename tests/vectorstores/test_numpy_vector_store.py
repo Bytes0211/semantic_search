@@ -126,6 +126,25 @@ def test_load_id_vector_count_mismatch_raises(tmp_path) -> None:
         NumpyVectorStore.load(str(store_path))
 
 
+def test_load_vector_dimension_mismatch_raises(tmp_path) -> None:
+    """Vectors in vectors.npy with wrong shape vs declared dimension raise VectorStoreError."""
+    import json
+    import numpy as np
+
+    store_path = tmp_path / "dim_mismatch"
+    store_path.mkdir()
+    # vectors.npy has dimension 4, but metadata declares dimension 2
+    np.save(str(store_path / "vectors.npy"), np.ones((1, 4), dtype=np.float32))
+    (store_path / "metadata.json").write_text(
+        json.dumps(
+            {"ids": ["a"], "dimension": 2, "metric": "l2", "metadata": {"a": {}}}
+        )
+    )
+
+    with pytest.raises(VectorStoreError, match="expected vector shape"):
+        NumpyVectorStore.load(str(store_path))
+
+
 def test_invalid_dimension_raises() -> None:
     store = NumpyVectorStore(dimension=3)
     with pytest.raises(ValueError):

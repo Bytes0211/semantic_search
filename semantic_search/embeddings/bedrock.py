@@ -104,6 +104,12 @@ class BedrockEmbeddingProvider(EmbeddingProvider):
     ) -> bytes:
         """Serialise an embedding input into a JSON request body.
 
+        ``item.metadata`` is intentionally excluded from the request body.
+        Amazon Titan Embeddings (and most Bedrock embedding models) only accept
+        ``inputText`` plus model-specific parameters; sending unknown top-level
+        fields raises a ``ValidationException``. Callers who need to pass
+        extra fields can do so via ``payload_overrides``.
+
         Args:
             item: The embedding input record.
             overrides: Additional top-level fields merged into the payload
@@ -113,8 +119,6 @@ class BedrockEmbeddingProvider(EmbeddingProvider):
             UTF-8 encoded JSON bytes ready for the Bedrock invocation.
         """
         payload: Dict[str, Any] = {"inputText": item.text}
-        if item.metadata:
-            payload["metadata"] = dict(item.metadata)
         payload.update(overrides)
         return json.dumps(payload).encode("utf-8")
 

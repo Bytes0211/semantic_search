@@ -110,6 +110,35 @@ def test_bedrock_embedding_provider(monkeypatch):
     assert results[0].metadata == {"model": "test-model"}
 
 
+def test_bedrock_payload_excludes_item_metadata(monkeypatch):
+    """EmbeddingInput.metadata must not appear as a top-level key in the Bedrock
+    request body; sending unknown fields causes a ValidationException."""
+    captured: Dict[str, Any] = {}
+
+    class MockClient:
+        def invoke_model(self, modelId: str, body: bytes, **kwargs: Any) -> Dict[str, Any]:
+            captured["body"] = body.decode("utf-8")
+            return {"body": types.SimpleNamespace(read=lambda: b'{"embedding": [0.1]}')}
+
+    class MockSession:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def client(self, service_name: str) -> MockClient:
+            return MockClient()
+
+    monkeypatch.setattr("semantic_search.embeddings.bedrock.boto3.Session", MockSession)
+
+    provider = BedrockEmbeddingProvider(region="us-east-1", model="test-model")
+    inputs = [EmbeddingInput(record_id="doc-1", text="hello", metadata={"source": "test"})]
+    provider.generate(inputs)
+
+    import json
+    body = json.loads(captured["body"])
+    assert "metadata" not in body, "item.metadata must not be forwarded into the Bedrock payload"
+    assert body == {"inputText": "hello"}
+
+
 def test_bedrock_embedding_provider_raises_on_bad_response(monkeypatch):
     class MockClient:
         def invoke_model(self, modelId: str, body: bytes, **kwargs: Any) -> Dict[str, Any]:
