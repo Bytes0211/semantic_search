@@ -24,58 +24,47 @@ locals {
     var.additional_tags
   )
 
-  embedding_module_sources = {
-    bedrock  = "../../modules/embedding_bedrock"
-    spot     = "../../modules/embedding_spot"
-    sagemaker = "../../modules/embedding_sagemaker"
-  }
-
-  search_runtime_module_sources = {
-    fargate = "../../modules/search_service_fargate"
-    lambda  = "../../modules/search_service_lambda"
-  }
-
-  vector_store_module_sources = {
-    faiss    = "../../modules/vector_store/faiss"
-    qdrant   = "../../modules/vector_store/qdrant"
-    pgvector = "../../modules/vector_store/pgvector"
-  }
 }
 
 module "core_network" {
   source = "../../modules/core_network"
 
-  project                  = var.project
-  environment              = var.environment
-  vpc_cidr                 = var.vpc_cidr
-  default_az_count         = var.default_az_count
-  create_nat_gateway       = false
-  enable_internet_gateway  = true
-  enable_flow_logs         = var.enable_flow_logs
+  project                   = var.project
+  environment               = var.environment
+  vpc_cidr                  = var.vpc_cidr
+  default_az_count          = var.default_az_count
+  create_nat_gateway        = false
+  enable_internet_gateway   = true
+  enable_flow_logs          = var.enable_flow_logs
   flow_log_destination_type = var.flow_log_destination_type
   flow_log_destination_arn  = var.flow_log_destination_arn
   flow_log_iam_role_arn     = var.flow_log_iam_role_arn
-  tags                     = local.default_tags
+  tags                      = local.default_tags
 }
 
 module "data_plane" {
   source = "../../modules/data_plane"
 
-  project          = var.project
-  environment      = var.environment
-  ingestion_mode   = var.ingestion_mode
+  project               = var.project
+  environment           = var.environment
+  ingestion_mode        = var.ingestion_mode
   enable_step_functions = var.enable_step_functions
   enable_dedupe_store   = var.enable_dedupe_store
   bucket_lifecycle_days = var.bucket_lifecycle_days
-  vpc_id           = module.core_network.vpc_id
-  private_subnet_ids = module.core_network.private_subnet_ids
-  tags             = local.default_tags
+  vpc_id                = module.core_network.vpc_id
+  private_subnet_ids    = module.core_network.private_subnet_ids
+  tags                  = local.default_tags
 
   # TODO: Wire additional module-specific inputs (e.g., KMS keys, DLQ policies) as contracts are finalized.
 }
 
-module "embedding" {
-  source = local.embedding_module_sources[var.embedding_backend]
+# ---------------------------------------------------------------------------
+# Embedding Provider Modules (count-gated — only one active at a time)
+# ---------------------------------------------------------------------------
+
+module "embedding_bedrock" {
+  count  = var.embedding_backend == "bedrock" ? 1 : 0
+  source = "../../modules/embedding_bedrock"
 
   project     = var.project
   environment = var.environment
@@ -83,38 +72,126 @@ module "embedding" {
   subnet_ids  = module.core_network.private_subnet_ids
   tags        = local.default_tags
 
-  canonical_bucket_name = module.data_plane.canonical_bucket_name
+  canonical_bucket_name  = module.data_plane.canonical_bucket_name
   embeddings_bucket_name = module.data_plane.embeddings_bucket_name
   reindex_topic_arn      = module.data_plane.reindex_topic_arn
 
-  # TODO: Provide backend-specific configuration (model IDs, instance sizing, etc.).
+  # TODO: Provide backend-specific configuration (model IDs, IAM policies, etc.).
 }
 
-module "vector_store" {
-  source = local.vector_store_module_sources[var.vector_store]
+module "embedding_spot" {
+  count  = var.embedding_backend == "spot" ? 1 : 0
+  source = "../../modules/embedding_spot"
 
-  project           = var.project
-  environment       = var.environment
-  vpc_id            = module.core_network.vpc_id
-  subnet_ids        = module.core_network.private_subnet_ids
-  security_group_ids = [] # TODO: populate with shared SGs once defined.
+  project     = var.project
+  environment = var.environment
+  vpc_id      = module.core_network.vpc_id
+  subnet_ids  = module.core_network.private_subnet_ids
+  tags        = local.default_tags
 
-  ingestion_queue_arn = module.data_plane.ingestion_queue_arn
-  tags                = local.default_tags
+  canonical_bucket_name  = module.data_plane.canonical_bucket_name
+  embeddings_bucket_name = module.data_plane.embeddings_bucket_name
+  reindex_topic_arn      = module.data_plane.reindex_topic_arn
 
-  # TODO: Surface vector-store specific sizing and replication parameters.
+  # TODO: Provide backend-specific configuration (instance sizing, autoscaling, etc.).
 }
 
-module "search_service" {
-  source = local.search_runtime_module_sources[var.search_runtime]
+module "embedding_sagemaker" {
+  count  = var.embedding_backend == "sagemaker" ? 1 : 0
+  source = "../../modules/embedding_sagemaker"
+
+  project     = var.project
+  environment = var.environment
+  vpc_id      = module.core_network.vpc_id
+  subnet_ids  = module.core_network.private_subnet_ids
+  tags        = local.default_tags
+
+  canonical_bucket_name  = module.data_plane.canonical_bucket_name
+  embeddings_bucket_name = module.data_plane.embeddings_bucket_name
+  reindex_topic_arn      = module.data_plane.reindex_topic_arn
+
+  # TODO: Provide backend-specific configuration (endpoint configs, scaling policies, etc.).
+}
+
+locals {
+  embedding_endpoint = (
+    var.embedding_backend == "bedrock" ? module.embedding_bedrock[0].endpoint :
+    var.embedding_backend == "spot" ? module.embedding_spot[0].endpoint :
+    module.embedding_sagemaker[0].endpoint
+  )
+}
+
+# ---------------------------------------------------------------------------
+# Vector Store Modules (count-gated — only one active at a time)
+# ---------------------------------------------------------------------------
+
+module "vector_store_faiss" {
+  count  = var.vector_store == "faiss" ? 1 : 0
+  source = "../../modules/vector_store/faiss"
 
   project            = var.project
   environment        = var.environment
   vpc_id             = module.core_network.vpc_id
   subnet_ids         = module.core_network.private_subnet_ids
-  public_subnet_ids  = module.core_network.public_subnet_ids
-  vector_store_endpoint = module.vector_store.endpoint
-  embedding_endpoint    = module.embedding.endpoint
+  security_group_ids = [] # TODO: populate with shared SGs once defined.
+
+  ingestion_queue_arn = module.data_plane.ingestion_queue_arn
+  tags                = local.default_tags
+}
+
+module "vector_store_qdrant" {
+  count  = var.vector_store == "qdrant" ? 1 : 0
+  source = "../../modules/vector_store/qdrant"
+
+  project            = var.project
+  environment        = var.environment
+  vpc_id             = module.core_network.vpc_id
+  subnet_ids         = module.core_network.private_subnet_ids
+  security_group_ids = [] # TODO: populate with shared SGs once defined.
+
+  ingestion_queue_arn = module.data_plane.ingestion_queue_arn
+  tags                = local.default_tags
+}
+
+module "vector_store_pgvector" {
+  count  = var.vector_store == "pgvector" ? 1 : 0
+  source = "../../modules/vector_store/pgvector"
+
+  project            = var.project
+  environment        = var.environment
+  vpc_id             = module.core_network.vpc_id
+  subnet_ids         = module.core_network.private_subnet_ids
+  security_group_ids = [] # TODO: populate with shared SGs once defined.
+
+  ingestion_queue_arn = module.data_plane.ingestion_queue_arn
+  tags                = local.default_tags
+
+  # TODO: Surface pgvector-specific sizing and replication parameters.
+}
+
+locals {
+  vector_store_endpoint = (
+    var.vector_store == "faiss" ? module.vector_store_faiss[0].endpoint :
+    var.vector_store == "qdrant" ? module.vector_store_qdrant[0].endpoint :
+    module.vector_store_pgvector[0].endpoint
+  )
+}
+
+# ---------------------------------------------------------------------------
+# Search Service Modules (count-gated — only one active at a time)
+# ---------------------------------------------------------------------------
+
+module "search_service_fargate" {
+  count  = var.search_runtime == "fargate" ? 1 : 0
+  source = "../../modules/search_service_fargate"
+
+  project               = var.project
+  environment           = var.environment
+  vpc_id                = module.core_network.vpc_id
+  subnet_ids            = module.core_network.private_subnet_ids
+  public_subnet_ids     = module.core_network.public_subnet_ids
+  vector_store_endpoint = local.vector_store_endpoint
+  embedding_endpoint    = local.embedding_endpoint
   ingestion_queue_arn   = module.data_plane.ingestion_queue_arn
   reindex_topic_arn     = module.data_plane.reindex_topic_arn
   tags                  = local.default_tags
@@ -122,16 +199,46 @@ module "search_service" {
   # TODO: Link to container image repository and runtime configuration once available.
 }
 
+module "search_service_lambda" {
+  count  = var.search_runtime == "lambda" ? 1 : 0
+  source = "../../modules/search_service_lambda"
+
+  project               = var.project
+  environment           = var.environment
+  vpc_id                = module.core_network.vpc_id
+  subnet_ids            = module.core_network.private_subnet_ids
+  public_subnet_ids     = module.core_network.public_subnet_ids
+  vector_store_endpoint = local.vector_store_endpoint
+  embedding_endpoint    = local.embedding_endpoint
+  ingestion_queue_arn   = module.data_plane.ingestion_queue_arn
+  reindex_topic_arn     = module.data_plane.reindex_topic_arn
+  tags                  = local.default_tags
+
+  # TODO: Link to container image repository and runtime configuration once available.
+}
+
+locals {
+  search_service_endpoint = (
+    var.search_runtime == "fargate" ? module.search_service_fargate[0].endpoint :
+    module.search_service_lambda[0].endpoint
+  )
+
+  search_service_name = (
+    var.search_runtime == "fargate" ? module.search_service_fargate[0].service_name :
+    module.search_service_lambda[0].service_name
+  )
+}
+
 module "observability" {
   source = "../../modules/observability"
 
-  project       = var.project
-  environment   = var.environment
-  vpc_id        = module.core_network.vpc_id
-  tags          = local.default_tags
+  project     = var.project
+  environment = var.environment
+  vpc_id      = module.core_network.vpc_id
+  tags        = local.default_tags
   metrics_sources = {
     ingestion_queue = module.data_plane.ingestion_queue_arn
-    search_service  = module.search_service.service_name
+    search_service  = local.search_service_name
   }
 
   # TODO: Extend with dashboards/alarms specific to embedding and vector store modules.
@@ -149,7 +256,7 @@ output "private_subnet_ids" {
 
 output "search_service_endpoint" {
   description = "Primary endpoint for the semantic search API."
-  value       = module.search_service.endpoint
+  value       = local.search_service_endpoint
 }
 
 output "embedding_backend" {
@@ -211,7 +318,7 @@ variable "flow_log_destination_type" {
 
 variable "flow_log_destination_arn" {
   type        = string
-  description = "ARN for the log destination receiving flow logs."
+  description = "ARN for the log destination receiving flow logs. Required when enable_flow_logs is true."
   default     = ""
 }
 

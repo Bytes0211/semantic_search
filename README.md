@@ -50,6 +50,12 @@ Data Sources → Ingestion → Preprocessing → Embedding → Vector Store → 
 
 See `docs/PRD-semantic-search.md` for the product requirements.
 
+## Phase Progress
+
+- **Phase 0 — Planning & Alignment:** Complete. Goals, scope, and architectural direction are captured in the PRD, technical approach, and agent guidelines.
+- **Phase 1 — Foundation & Infrastructure:** Complete. Terraform scaffolding, runtime/embedding toggles, and container pipeline documentation are in place, enabling Phase 2 ingestion work.
+- **Next:** Implement Phase 2 ingestion connectors and canonical schema pipeline using the documented infrastructure toggles.
+
 ## Tech Stack
 
 - **Python** 3.12+
@@ -88,7 +94,10 @@ python main.py
 ├── docs/
 │   └── PRD-semantic-search.md   # Product requirements document
 ├── developer/
-│   └── technical_approach.md    # Technical design document
+│   ├── technical_approach.md    # Technical design document
+│   ├── project_status.md        # Phase tracking and next actions
+│   ├── container_pipeline.md    # Shared build/deploy workflow
+│   └── process-flow.md          # End-to-end process diagrams
 ├── AGENTS.md                # Agent coding guidelines and project context
 └── README.md
 ```
@@ -105,6 +114,9 @@ Infrastructure is managed through Terraform variables:
 
 - [Product Requirements](docs/PRD-semantic-search.md)
 - [Technical Approach](developer/technical_approach.md)
+- [Project Status](developer/project_status.md)
+- [Process Flow & Configuration Toggles](developer/process-flow.md)
+- [Container Build & Deployment](developer/container_pipeline.md)
 - [Agent Guidelines](AGENTS.md)
 
 ## License

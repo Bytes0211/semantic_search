@@ -135,6 +135,10 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Scaffolded Terraform module directories (`core_network`, `data_plane`, `vector_store`, `search_service_*`, `embedding_*`, `observability`, `shared`) with initial responsibilities captured in module READMEs.
 - ✅ Defined configuration toggles (`var.search_runtime`, `var.embedding_backend`, `var.ingestion_mode`) with trade-offs and published toggle guidance + tfvars examples in `infrastructure/README.md`.
 - ✅ Authored the reusable container build/deploy pipeline (`developer/container_pipeline.md`) supporting both ECS/Fargate and Lambda runtimes.
+- ➡️ Phase 1 deliverables unlock Phase 2 ingestion work (pluggable connectors, canonical schema, instrumentation).
+
+### Next Steps
+- Begin **Phase 2 — Data Ingestion Layer**: implement pluggable connectors (CSV, SQL, JSON, API), finalize canonical schema normalization, and wire ingestion metrics using the documented runtime/embedding toggles.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures

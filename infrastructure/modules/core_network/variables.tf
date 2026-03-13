@@ -103,7 +103,7 @@ variable "flow_log_destination_type" {
 
 variable "flow_log_destination_arn" {
   type        = string
-  description = "ARN for the CloudWatch Log Group or S3 bucket that receives flow logs."
+  description = "ARN for the CloudWatch Log Group or S3 bucket that receives flow logs. Required when enable_flow_logs is true."
   default     = ""
 }
 

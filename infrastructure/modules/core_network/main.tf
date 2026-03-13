@@ -12,9 +12,10 @@ terraform {
 locals {
   name_prefix = var.name_prefix != "" ? var.name_prefix : "${var.project}-core"
 
-  azs = var.availability_zones != null && length(var.availability_zones) > 0 ?
-    var.availability_zones :
-    slice(data.aws_availability_zones.available.names, 0, var.default_az_count)
+  azs = (var.availability_zones != null && length(var.availability_zones) > 0
+    ? var.availability_zones
+    : slice(data.aws_availability_zones.available.names, 0, var.default_az_count)
+  )
 
   public_subnets = {
     for idx, az in local.azs :
@@ -104,8 +105,8 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_eip" "nat" {
-  count = var.create_nat_gateway ? 1 : 0
-  vpc   = true
+  count  = var.create_nat_gateway ? 1 : 0
+  domain = "vpc"
 
   tags = merge(local.common_tags, {
     "Name" = "${local.name_prefix}-nat-eip"
@@ -154,8 +155,17 @@ resource "aws_flow_log" "this" {
   log_destination_type = var.flow_log_destination_type
   traffic_type         = "ALL"
   vpc_id               = aws_vpc.this.id
-  iam_role_arn = var.flow_log_destination_type == "cloud-watch-logs" && var.flow_log_iam_role_arn != "" ?
-  var.flow_log_iam_role_arn : null
+  iam_role_arn = (var.flow_log_destination_type == "cloud-watch-logs" && var.flow_log_iam_role_arn != ""
+    ? var.flow_log_iam_role_arn
+    : null
+  )
+
+  lifecycle {
+    precondition {
+      condition     = var.flow_log_destination_arn != ""
+      error_message = "flow_log_destination_arn must be set when enable_flow_logs is true."
+    }
+  }
 
   tags = merge(local.common_tags, {
     "Name" = "${local.name_prefix}-flow-log"
