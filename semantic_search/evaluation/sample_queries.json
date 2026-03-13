@@ -1,0 +1,32 @@
+[
+  {
+    "query_id": "q001",
+    "query_text": "alpha document search",
+    "relevant_ids": ["alpha"],
+    "top_k": 5
+  },
+  {
+    "query_id": "q002",
+    "query_text": "bravo ticket lookup",
+    "relevant_ids": ["bravo"],
+    "top_k": 5
+  },
+  {
+    "query_id": "q003",
+    "query_text": "charlie southeast region",
+    "relevant_ids": ["charlie"],
+    "top_k": 5
+  },
+  {
+    "query_id": "q004",
+    "query_text": "us-east-1 documents",
+    "relevant_ids": ["alpha"],
+    "top_k": 10
+  },
+  {
+    "query_id": "q005",
+    "query_text": "eu-west-1 ticket",
+    "relevant_ids": ["bravo"],
+    "top_k": 10
+  }
+]

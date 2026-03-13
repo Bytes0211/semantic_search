@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 semantic-search = "semantic_search.runtime.cli:main"
+semantic-search-eval = "semantic_search.evaluation.cli:main"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
@@ -32,4 +33,5 @@ markers = [
 dev = [
     "pytest>=8.4.2",
     "httpx>=0.27.0,<1.0",
+    "locust>=2.29,<3.0",
 ]

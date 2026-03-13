@@ -58,7 +58,7 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 2 — Data Ingestion Layer:** Complete. Pluggable connectors, canonical schema normalisation, and ingestion observability are in place to supply embedding pipelines.
 - **Phase 3 — Embedding & Vector Services:** Complete. Bedrock, Spot, and SageMaker adapters implemented; NumPy vector store with cosine/L2/inner-product metrics, persistence, and idempotent upserts delivered; end-to-end embedding pipeline with two-phase S3 backup and resilient error handling wired; 50 tests passing.
 - **Phase 4 — Search Runtime & Interfaces:** Complete. FastAPI REST API, CLI, and lightweight validation UI (`/ui`) delivered; full Terraform modules for Fargate and Lambda runtimes, observability module (dashboards/alarms/log widgets), example tfvars, and deployment runbook in place; 67 tests passing. Environment `terraform apply` and smoke-test validation pending.
-- **Next:** Begin Phase 5 — Quality & Launch Readiness (relevance evaluation, latency benchmarking, documentation handoff).
+- **Phase 5 — Quality & Launch Readiness:** Complete. Relevance evaluation suite (`semantic-search-eval` CLI, 5 IR metrics, 54 new tests); Locust load test harness with acceptance criteria; cost optimisation guide; client deployment playbook and Terraform variable reference; 121 tests passing.
 ## Tech Stack
 
 - **Python** 3.12+
@@ -107,17 +107,21 @@ VECTOR_STORE_PATH=./my_index ENABLE_UI=true uv run python main.py
 │   └── vectorstores/        # NumpyVectorStore (L2, cosine, inner-product)
 ├── tests/
 │   ├── embeddings/          # Unit tests for all embedding providers
+│   ├── evaluation/          # Relevance evaluation tests
+│   ├── load/                # Locust load test harness
 │   ├── pipeline/            # Embedding pipeline tests
 │   ├── runtime/             # Search API and CLI tests
 │   └── vectorstores/        # Vector store tests
 ├── docs/
 │   ├── PRD-semantic-search.md
+│   ├── cost_optimisation.md # Cost sizing and tuning guidance
 │   └── process_flows/       # End-to-end process diagrams (01–06)
 ├── developer/
 │   ├── technical_approach.md
 │   ├── project_status.md
 │   ├── container_pipeline.md
 │   ├── developer-journal.md
+│   ├── handoff/             # Deployment playbook & Terraform variable reference
 │   └── runbooks/            # Operational runbooks (runtime deployment, rollback)
 ├── infrastructure/          # Terraform modules and dev environment
 ├── github/                  # ISSUES and PRs tracking docs
