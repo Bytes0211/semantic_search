@@ -37,7 +37,8 @@ sequenceDiagram
 - **Multiple vector stores** — FAISS, Qdrant, or pgvector
 - **Flexible deployment** — ECS/Fargate or Lambda, toggled via Terraform configuration
 - **Filtering & ranking** — cosine similarity with optional cross-encoder re-ranking, support for date/category/tag filters
-- **REST API, CLI, and optional UI**
+- **FastAPI runtime & CLI tooling** — container-ready REST service with a shared command-line client for validation and smoke tests
+- **Validation UI** — self-contained single-page web interface served at `/ui` for issuing queries during local development and deployment validation
 
 ## Architecture Overview
 
@@ -55,9 +56,9 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 0 — Planning & Alignment:** Complete. Goals, scope, and architectural direction are captured in the PRD, technical approach, and agent guidelines.
 - **Phase 1 — Foundation & Infrastructure:** Complete. Terraform scaffolding, runtime/embedding toggles, and container pipeline documentation are in place, enabling Phase 2 ingestion work.
 - **Phase 2 — Data Ingestion Layer:** Complete. Pluggable connectors, canonical schema normalisation, and ingestion observability are in place to supply embedding pipelines.
-- **Phase 3 — Embedding & Vector Services:** Complete. Bedrock, Spot, and SageMaker adapters implemented; NumPy vector store with cosine/L2/inner-product metrics, persistence, and idempotent upserts delivered; end-to-end embedding pipeline wired; 40 tests passing.
-- **Next:** Implement Phase 4 — Search Runtime & Interfaces (REST API, CLI, Fargate/Lambda deployment).
-
+- **Phase 3 — Embedding & Vector Services:** Complete. Bedrock, Spot, and SageMaker adapters implemented; NumPy vector store with cosine/L2/inner-product metrics, persistence, and idempotent upserts delivered; end-to-end embedding pipeline with two-phase S3 backup and resilient error handling wired; 50 tests passing.
+- **Phase 4 — Search Runtime & Interfaces:** Complete. FastAPI REST API, CLI, and lightweight validation UI (`/ui`) delivered; full Terraform modules for Fargate and Lambda runtimes, observability module (dashboards/alarms/log widgets), example tfvars, and deployment runbook in place; 67 tests passing. Environment `terraform apply` and smoke-test validation pending.
+- **Next:** Begin Phase 5 — Quality & Launch Readiness (relevance evaluation, latency benchmarking, documentation handoff).
 ## Tech Stack
 
 - **Python** 3.12+
@@ -86,8 +87,11 @@ uv sync
 # Run tests
 uv run pytest
 
-# Run
+# Start the server (no vector store required — /readyz returns 503 until an index is loaded)
 uv run python main.py
+
+# Start with a saved index and the validation UI at http://localhost:8000/ui
+VECTOR_STORE_PATH=./my_index ENABLE_UI=true uv run python main.py
 ```
 
 ## Project Structure
@@ -99,10 +103,12 @@ uv run python main.py
 ├── semantic_search/
 │   ├── embeddings/          # Provider interface, Bedrock/Spot/SageMaker adapters, factory
 │   ├── pipeline/            # EmbeddingPipeline (provider → vector store → S3)
+│   ├── runtime/             # FastAPI search service, CLI tooling
 │   └── vectorstores/        # NumpyVectorStore (L2, cosine, inner-product)
 ├── tests/
 │   ├── embeddings/          # Unit tests for all embedding providers
 │   ├── pipeline/            # Embedding pipeline tests
+│   ├── runtime/             # Search API and CLI tests
 │   └── vectorstores/        # Vector store tests
 ├── docs/
 │   ├── PRD-semantic-search.md
@@ -111,7 +117,8 @@ uv run python main.py
 │   ├── technical_approach.md
 │   ├── project_status.md
 │   ├── container_pipeline.md
-│   └── developer-journal.md
+│   ├── developer-journal.md
+│   └── runbooks/            # Operational runbooks (runtime deployment, rollback)
 ├── infrastructure/          # Terraform modules and dev environment
 ├── github/                  # ISSUES and PRs tracking docs
 ├── AGENTS.md                # Agent coding guidelines and project context
@@ -133,6 +140,7 @@ Infrastructure is managed through Terraform variables:
 - [Project Status](developer/project_status.md)
 - [Process Flow & Configuration Toggles](developer/process-flow.md)
 - [Container Build & Deployment](developer/container_pipeline.md)
+- [Runtime Deployment Runbook](developer/runbooks/runtime_deploy.md)
 - [Agent Guidelines](AGENTS.md)
 
 ## License

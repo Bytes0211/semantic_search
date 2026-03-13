@@ -1,0 +1,37 @@
+project                           = "semantic-search"
+environment                       = "dev"
+aws_region                        = "us-east-1"
+
+search_runtime                    = "fargate"
+embedding_backend                 = "bedrock"
+vector_store                      = "faiss"
+ingestion_mode                    = "batch"
+
+search_service_container_image    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main"
+search_service_allowed_ingress_cidrs = [
+  "203.0.113.0/24",
+]
+search_service_desired_count      = 2
+search_service_min_capacity       = 2
+search_service_max_capacity       = 6
+search_service_cpu                = 1024
+search_service_memory             = 2048
+search_service_assign_public_ip   = false
+search_service_log_level          = "INFO"
+search_service_enable_request_tracing = true
+search_service_enable_query_logging   = true
+search_service_secret_arn_values  = {
+  RUNTIME_CONFIG = "arn:aws:secretsmanager:us-east-1:123456789012:secret:semantic-search-runtime"
+}
+search_service_environment_variables = {
+  DEPLOYMENT_STAGE = "dev"
+  FEATURE_FLAGS    = "realtime_filters"
+}
+
+enable_step_functions             = false
+enable_dedupe_store               = true
+bucket_lifecycle_days             = 30
+
+additional_tags = {
+  Owner = "search-platform-team"
+}
