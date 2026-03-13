@@ -1,7 +1,33 @@
 [project]
 name = "semantic-search"
 version = "0.1.0"
-description = "A LLM‑powered embeddings, vector search, and lightweight retrieval pipelines** to transform internal data into a searchable knowledge layer."
+description = "An LLM-powered semantic search pipeline for internal data sources."
 readme = "README.md"
 requires-python = ">=3.12.12"
-dependencies = []
+dependencies = [
+    "boto3>=1.34,<2.0",
+    "numpy>=1.24,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    ".",
+]
+python_files = "test_*.py"
+markers = [
+    "integration: marks tests as integration (deselect with '-m \"not integration\"')",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]

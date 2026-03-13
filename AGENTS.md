@@ -137,10 +137,23 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Scaffolded Terraform module directories (`core_network`, `data_plane`, `vector_store`, `search_service_*`, `embedding_*`, `observability`, `shared`) with initial responsibilities captured in module READMEs.
 - ✅ Defined configuration toggles (`var.search_runtime`, `var.embedding_backend`, `var.ingestion_mode`) with trade-offs and published toggle guidance + tfvars examples in `infrastructure/README.md`.
 - ✅ Authored the reusable container build/deploy pipeline (`developer/container_pipeline.md`) supporting both ECS/Fargate and Lambda runtimes.
-- ➡️ Phase 1 deliverables unlock Phase 2 ingestion work (pluggable connectors, canonical schema, instrumentation).
+- ✅ Phase 1 deliverables unlocked Phase 2 ingestion work (pluggable connectors, canonical schema, instrumentation).
+
+### Phase 2 — Data Ingestion Layer
+- ✅ Implemented pluggable connectors (CSV, SQL, JSON, API) and orchestrated scheduled batches with optional streaming pathways.
+- ✅ Normalized records into a canonical schema persisted to S3 with metadata enrichment.
+- ✅ Added ingestion observability (structured logging, metrics, DLQ alerts) and documented configuration toggles feeding Phase 3.
+- ✅ Updated developer documentation to reflect ingestion outputs and dependencies for embedding jobs.
+
+### Phase 3 — Embedding & Vector Services
+- ✅ Implemented shared `EmbeddingProvider` base interface and provider factory registry (`semantic_search/embeddings/`).
+- ✅ Delivered Bedrock, Spot-hosted OSS, and SageMaker embedding adapters — all registered via factory and covered by unit tests.
+- ✅ Provisioned NumPy-backed vector store (`NumpyVectorStore`) with L2, cosine, and inner-product metrics, idempotent upsert, metadata persistence, and save/load roundtrip.
+- ✅ Wired end-to-end `EmbeddingPipeline` connecting provider, vector store, and S3 backup pathway.
+- ✅ Full test suite green: 40 tests passing across embeddings, pipeline, and vector store modules.
 
 ### Next Steps
-- Begin **Phase 2 — Data Ingestion Layer**: implement pluggable connectors (CSV, SQL, JSON, API), finalize canonical schema normalization, and wire ingestion metrics using the documented runtime/embedding toggles.
+- Begin **Phase 4 — Search Runtime & Interfaces**: build the semantic search REST API and CLI, deploy to ECS/Fargate and Lambda runtimes, and integrate observability dashboards.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
