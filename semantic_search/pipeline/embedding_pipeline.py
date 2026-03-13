@@ -205,7 +205,7 @@ class EmbeddingPipeline:
             )
             failed_ids.extend(item.record_id for item in batch)
             return records, failed_ids
-
+        
         for embedding in results:
             try:
                 records.append(
@@ -222,6 +222,15 @@ class EmbeddingPipeline:
                     exc,
                 )
                 failed_ids.append(embedding.record_id)
+
+        returned_ids = {e.record_id for e in results}
+        for item in batch:
+            if item.record_id not in returned_ids:
+                LOGGER.warning(
+                    "Provider silently dropped record_id=%r (not present in generate() output)",
+                    item.record_id,
+                )
+                failed_ids.append(item.record_id)
 
         return records, failed_ids
 

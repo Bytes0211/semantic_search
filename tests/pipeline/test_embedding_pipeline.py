@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from semantic_search.embeddings.base import EmbeddingInput
+from semantic_search.embeddings.base import EmbeddingInput, EmbeddingProvider, EmbeddingResult
 from semantic_search.embeddings.spot import SpotEmbeddingProvider
 from semantic_search.pipeline.embedding_pipeline import EmbeddingPipeline, PipelineResult
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
@@ -139,6 +139,39 @@ def test_rerun_updates_vectors() -> None:
 
     # Scores will differ because the vector changed
     assert vector_before != vector_after
+
+
+# ---------------------------------------------------------------------------
+# Provider silent drops
+# ---------------------------------------------------------------------------
+
+
+def test_silently_dropped_records_counted_as_failed() -> None:
+    """Records missing from provider output are added to failed_ids, not silently lost."""
+    inputs = _make_inputs(3)  # doc-0, doc-1, doc-2
+
+    class DroppingProvider(EmbeddingProvider):
+        """Returns embeddings for only the first input, silently dropping the rest."""
+
+        def generate(self, batch, *, model=None, **_):
+            return [
+                EmbeddingResult(
+                    record_id=batch[0].record_id,
+                    vector=[0.1] * DIMENSION,
+                    metadata={},
+                )
+            ]
+
+    store = NumpyVectorStore(dimension=DIMENSION)
+    pipeline = EmbeddingPipeline(DroppingProvider(), store, batch_size=64)
+    result = pipeline.run(inputs)
+
+    assert result.total == 3
+    assert result.succeeded == 1
+    assert result.failed == 2
+    assert result.total == result.succeeded + result.failed
+    assert "doc-1" in result.failed_ids
+    assert "doc-2" in result.failed_ids
 
 
 # ---------------------------------------------------------------------------

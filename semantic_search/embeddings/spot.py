@@ -66,9 +66,12 @@ class SpotEmbeddingProvider(EmbeddingProvider):
         results: list[EmbeddingResult] = []
         for item in inputs:
             vector = self._hash_to_vector(item.text)
+            # fix overwrite logic
             metadata = {"model": target_model, "backend": "spot"}
             if item.metadata:
-                metadata.update(item.metadata)
+                merged = dict(item.metadata)
+                merged.update(metadata)  # provider fields win
+                metadata = merged
             results.append(
                 EmbeddingResult(
                     record_id=item.record_id,
