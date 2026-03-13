@@ -1,0 +1,37 @@
+project                     = "semantic-search"
+environment                 = "dev"
+aws_region                  = "us-east-1"
+
+search_runtime              = "lambda"
+embedding_backend           = "sagemaker"
+vector_store                = "pgvector"
+ingestion_mode              = "batch"
+
+# Container image published by the shared build pipeline
+lambda_container_image      = "123456789012.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main"
+lambda_timeout_seconds      = 20
+lambda_memory_mb            = 2048
+lambda_enable_ephemeral_storage = true
+lambda_ephemeral_storage_mb = 2048
+lambda_enable_provisioned_concurrency = true
+lambda_provisioned_concurrency_count  = 3
+lambda_lambda_architecture  = "x86_64"
+
+lambda_environment_variables = {
+  DEPLOYMENT_STAGE = "dev"
+  FEATURE_FLAGS    = "async_rerank"
+}
+
+lambda_secret_arn_values = {
+  RUNTIME_CONFIG = "arn:aws:secretsmanager:us-east-1:123456789012:secret:semantic-search-runtime"
+}
+
+lambda_additional_security_group_ids = [
+  "sg-0abc1234def567890",
+]
+
+notification_topic_arn = "arn:aws:sns:us-east-1:123456789012:semantic-search-alerts"
+
+additional_tags = {
+  Owner = "search-platform-team"
+}

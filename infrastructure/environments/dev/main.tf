@@ -185,47 +185,121 @@ module "search_service_fargate" {
   count  = var.search_runtime == "fargate" ? 1 : 0
   source = "../../modules/search_service_fargate"
 
-  project               = var.project
-  environment           = var.environment
-  vpc_id                = module.core_network.vpc_id
-  subnet_ids            = module.core_network.private_subnet_ids
-  public_subnet_ids     = module.core_network.public_subnet_ids
-  vector_store_endpoint = local.vector_store_endpoint
-  embedding_endpoint    = local.embedding_endpoint
-  ingestion_queue_arn   = module.data_plane.ingestion_queue_arn
-  reindex_topic_arn     = module.data_plane.reindex_topic_arn
-  tags                  = local.default_tags
-
-  # TODO: Link to container image repository and runtime configuration once available.
+  project                           = var.project
+  environment                       = var.environment
+  aws_region                        = var.aws_region
+  vpc_id                            = module.core_network.vpc_id
+  subnet_ids                        = module.core_network.private_subnet_ids
+  public_subnet_ids                 = module.core_network.public_subnet_ids
+  additional_security_group_ids     = var.search_service_additional_security_group_ids
+  allowed_ingress_cidrs             = var.search_service_allowed_ingress_cidrs
+  vector_store_endpoint             = local.vector_store_endpoint
+  embedding_endpoint                = local.embedding_endpoint
+  ingestion_queue_arn               = module.data_plane.ingestion_queue_arn
+  reindex_topic_arn                 = module.data_plane.reindex_topic_arn
+  container_image                   = var.search_service_container_image
+  cpu                               = var.search_service_cpu
+  memory                            = var.search_service_memory
+  container_port                    = var.search_service_container_port
+  desired_count                     = var.search_service_desired_count
+  min_capacity                      = var.search_service_min_capacity
+  max_capacity                      = var.search_service_max_capacity
+  assign_public_ip                  = var.search_service_assign_public_ip
+  platform_version                  = var.search_service_platform_version
+  log_retention_in_days             = var.search_service_log_retention_in_days
+  environment_variables             = var.search_service_environment_variables
+  secret_arn_values                 = var.search_service_secret_arn_values
+  log_level                         = var.search_service_log_level
+  metrics_namespace                 = var.search_service_metrics_namespace
+  enable_request_tracing            = var.search_service_enable_request_tracing
+  enable_query_logging              = var.search_service_enable_query_logging
+  max_concurrent_queries            = var.search_service_max_concurrent_queries
+  default_top_k                     = var.search_service_default_top_k
+  max_top_k                         = var.search_service_max_top_k
+  candidate_multiplier              = var.search_service_candidate_multiplier
+  healthcheck_path                  = var.search_service_healthcheck_path
+  readiness_path                    = var.search_service_readiness_path
+  healthcheck_interval_seconds      = var.search_service_healthcheck_interval_seconds
+  healthcheck_timeout_seconds       = var.search_service_healthcheck_timeout_seconds
+  healthcheck_healthy_threshold     = var.search_service_healthcheck_healthy_threshold
+  healthcheck_unhealthy_threshold   = var.search_service_healthcheck_unhealthy_threshold
+  alarm_http_5xx_threshold          = var.search_service_alarm_http_5xx_threshold
+  startup_timeout_seconds           = var.search_service_startup_timeout_seconds
+  shutdown_timeout_seconds          = var.search_service_shutdown_timeout_seconds
+  enable_request_based_scaling      = var.search_service_enable_request_based_scaling
+  autoscaling_cpu_target            = var.search_service_autoscaling_cpu_target
+  autoscaling_requests_per_target   = var.search_service_autoscaling_requests_per_target
+  scale_in_cooldown_seconds         = var.search_service_scale_in_cooldown_seconds
+  scale_out_cooldown_seconds        = var.search_service_scale_out_cooldown_seconds
+  tags                              = local.default_tags
 }
 
 module "search_service_lambda" {
   count  = var.search_runtime == "lambda" ? 1 : 0
   source = "../../modules/search_service_lambda"
 
-  project               = var.project
-  environment           = var.environment
-  vpc_id                = module.core_network.vpc_id
-  subnet_ids            = module.core_network.private_subnet_ids
-  public_subnet_ids     = module.core_network.public_subnet_ids
-  vector_store_endpoint = local.vector_store_endpoint
-  embedding_endpoint    = local.embedding_endpoint
-  ingestion_queue_arn   = module.data_plane.ingestion_queue_arn
-  reindex_topic_arn     = module.data_plane.reindex_topic_arn
-  tags                  = local.default_tags
-
-  # TODO: Link to container image repository and runtime configuration once available.
+  project                           = var.project
+  environment                       = var.environment
+  vpc_id                            = module.core_network.vpc_id
+  subnet_ids                        = module.core_network.private_subnet_ids
+  vector_store_endpoint             = local.vector_store_endpoint
+  embedding_endpoint                = local.embedding_endpoint
+  ingestion_queue_arn               = module.data_plane.ingestion_queue_arn
+  reindex_topic_arn                 = module.data_plane.reindex_topic_arn
+  tags                              = local.default_tags
+  container_image                   = var.lambda_container_image
+  lambda_architecture               = var.lambda_architecture
+  timeout_seconds                   = var.lambda_timeout_seconds
+  memory_mb                         = var.lambda_memory_mb
+  enable_ephemeral_storage          = var.lambda_enable_ephemeral_storage
+  ephemeral_storage_mb              = var.lambda_ephemeral_storage_mb
+  enable_provisioned_concurrency    = var.lambda_enable_provisioned_concurrency
+  provisioned_concurrency_count     = var.lambda_provisioned_concurrency_count
+  log_level                         = var.lambda_log_level
+  metrics_namespace                 = var.lambda_metrics_namespace
+  enable_request_tracing            = var.lambda_enable_request_tracing
+  enable_query_logging              = var.lambda_enable_query_logging
+  max_concurrent_queries            = var.lambda_max_concurrent_queries
+  default_top_k                     = var.lambda_default_top_k
+  max_top_k                         = var.lambda_max_top_k
+  candidate_multiplier              = var.lambda_candidate_multiplier
+  healthcheck_path                  = var.lambda_healthcheck_path
+  readiness_path                    = var.lambda_readiness_path
+  environment_variables             = var.lambda_environment_variables
+  secret_arn_values                 = var.lambda_secret_arn_values
+  log_retention_in_days             = var.lambda_log_retention_in_days
+  api_gateway_timeout_ms            = var.lambda_api_gateway_timeout_ms
+  api_gateway_stage                 = var.lambda_api_gateway_stage
+  xray_tracing_mode                 = var.lambda_xray_tracing_mode
+  alarm_throttle_threshold          = var.lambda_alarm_throttle_threshold
+  additional_security_group_ids     = var.lambda_additional_security_group_ids
 }
 
 locals {
   search_service_endpoint = (
-    var.search_runtime == "fargate" ? module.search_service_fargate[0].endpoint :
-    module.search_service_lambda[0].endpoint
+    var.search_runtime == "fargate"
+    ? module.search_service_fargate[0].endpoint
+    : module.search_service_lambda[0].endpoint
   )
 
   search_service_name = (
-    var.search_runtime == "fargate" ? module.search_service_fargate[0].service_name :
-    module.search_service_lambda[0].service_name
+    var.search_runtime == "fargate"
+    ? module.search_service_fargate[0].service_name
+    : module.search_service_lambda[0].function_name
+  )
+
+  search_service_metrics_source = local.search_service_name
+
+  runtime_log_group_name = (
+    var.search_runtime == "fargate"
+    ? module.search_service_fargate[0].log_group_name
+    : module.search_service_lambda[0].log_group_name
+  )
+
+  api_log_group_name = (
+    var.search_runtime == "lambda"
+    ? module.search_service_lambda[0].api_log_group_name
+    : null
   )
 }
 
@@ -234,12 +308,15 @@ module "observability" {
 
   project     = var.project
   environment = var.environment
-  vpc_id      = module.core_network.vpc_id
   tags        = local.default_tags
   metrics_sources = {
     ingestion_queue = module.data_plane.ingestion_queue_arn
-    search_service  = local.search_service_name
+    search_service  = local.search_service_metrics_source
   }
+  log_group_names = merge(
+    { runtime = local.runtime_log_group_name },
+    local.api_log_group_name != null ? { api = local.api_log_group_name } : {}
+  )
 
   # TODO: Extend with dashboards/alarms specific to embedding and vector store modules.
 }
@@ -257,6 +334,21 @@ output "private_subnet_ids" {
 output "search_service_endpoint" {
   description = "Primary endpoint for the semantic search API."
   value       = local.search_service_endpoint
+}
+
+output "search_service_name" {
+  description = "Identifier of the active search runtime (ECS service name or Lambda function name)."
+  value       = local.search_service_name
+}
+
+output "search_service_runtime_log_group_name" {
+  description = "CloudWatch Log Group capturing search runtime logs."
+  value       = local.runtime_log_group_name
+}
+
+output "search_service_api_log_group_name" {
+  description = "CloudWatch Log Group capturing API Gateway access logs when the Lambda runtime is selected."
+  value       = local.api_log_group_name
 }
 
 output "embedding_backend" {
@@ -355,6 +447,388 @@ variable "bucket_lifecycle_days" {
   type        = number
   description = "Number of days before S3 objects transition to infrequent access."
   default     = 30
+}
+
+variable "search_service_additional_security_group_ids" {
+  type        = list(string)
+  description = "Additional security groups attached to the search service tasks."
+  default     = []
+}
+
+variable "search_service_allowed_ingress_cidrs" {
+  type        = list(string)
+  description = "CIDR blocks permitted to access the search service load balancer."
+  default     = ["0.0.0.0/0"]
+}
+
+variable "search_service_container_image" {
+  type        = string
+  description = "Container image URI for the semantic search runtime."
+  default     = ""
+}
+
+variable "search_service_cpu" {
+  type        = number
+  description = "CPU units allocated to each Fargate task."
+  default     = 1024
+}
+
+variable "search_service_memory" {
+  type        = number
+  description = "Memory (in MiB) allocated to each Fargate task."
+  default     = 2048
+}
+
+variable "search_service_container_port" {
+  type        = number
+  description = "Container port exposed by the semantic search runtime."
+  default     = 8080
+}
+
+variable "search_service_desired_count" {
+  type        = number
+  description = "Initial desired count for the search service tasks."
+  default     = 2
+}
+
+variable "search_service_min_capacity" {
+  type        = number
+  description = "Minimum task count allowed by autoscaling."
+  default     = 2
+}
+
+variable "search_service_max_capacity" {
+  type        = number
+  description = "Maximum task count allowed by autoscaling."
+  default     = 6
+}
+
+variable "search_service_assign_public_ip" {
+  type        = bool
+  description = "Assign a public IP to the Fargate tasks."
+  default     = false
+}
+
+variable "search_service_platform_version" {
+  type        = string
+  description = "Fargate platform version for the search service."
+  default     = "LATEST"
+}
+
+variable "search_service_log_retention_in_days" {
+  type        = number
+  description = "CloudWatch Logs retention period for the search service."
+  default     = 14
+}
+
+variable "search_service_environment_variables" {
+  type        = map(string)
+  description = "Additional plain-text environment variables for the search runtime."
+  default     = {}
+}
+
+variable "search_service_secret_arn_values" {
+  type        = map(string)
+  description = "Mapping of environment variable names to Secrets Manager ARNs."
+  default     = {}
+}
+
+variable "search_service_log_level" {
+  type        = string
+  description = "Default log level for the search runtime."
+  default     = "INFO"
+}
+
+variable "search_service_metrics_namespace" {
+  type        = string
+  description = "Metrics namespace emitted by the search runtime."
+  default     = "SemanticSearch/Runtime"
+}
+
+variable "search_service_enable_request_tracing" {
+  type        = bool
+  description = "Enable request-level tracing headers in the runtime."
+  default     = false
+}
+
+variable "search_service_enable_query_logging" {
+  type        = bool
+  description = "Enable structured query logging in the runtime."
+  default     = false
+}
+
+variable "search_service_max_concurrent_queries" {
+  type        = number
+  description = "Maximum concurrent queries processed by the runtime."
+  default     = 100
+}
+
+variable "search_service_default_top_k" {
+  type        = number
+  description = "Default number of results returned per query."
+  default     = 10
+}
+
+variable "search_service_max_top_k" {
+  type        = number
+  description = "Maximum number of results allowed per query."
+  default     = 200
+}
+
+variable "search_service_candidate_multiplier" {
+  type        = number
+  description = "Candidate multiplier applied before post-query filtering."
+  default     = 3
+}
+
+variable "search_service_healthcheck_path" {
+  type        = string
+  description = "Healthcheck endpoint path exposed by the runtime."
+  default     = "/healthz"
+}
+
+variable "search_service_readiness_path" {
+  type        = string
+  description = "Readiness endpoint path exposed by the runtime."
+  default     = "/readyz"
+}
+
+variable "search_service_healthcheck_interval_seconds" {
+  type        = number
+  description = "Interval between load balancer health checks."
+  default     = 30
+}
+
+variable "search_service_healthcheck_timeout_seconds" {
+  type        = number
+  description = "Timeout for load balancer health checks."
+  default     = 5
+}
+
+variable "search_service_healthcheck_healthy_threshold" {
+  type        = number
+  description = "Number of consecutive successes required for a target to be considered healthy."
+  default     = 3
+}
+
+variable "search_service_healthcheck_unhealthy_threshold" {
+  type        = number
+  description = "Number of consecutive failures required for a target to be considered unhealthy."
+  default     = 3
+}
+
+variable "search_service_alarm_http_5xx_threshold" {
+  type        = number
+  description = "Threshold of HTTP 5xx responses that triggers the CloudWatch alarm."
+  default     = 5
+}
+
+variable "search_service_startup_timeout_seconds" {
+  type        = number
+  description = "Grace period before declaring the runtime unhealthy on startup."
+  default     = 60
+}
+
+variable "search_service_shutdown_timeout_seconds" {
+  type        = number
+  description = "Grace period granted to the runtime during shutdown."
+  default     = 30
+}
+
+variable "search_service_enable_request_based_scaling" {
+  type        = bool
+  description = "Enable ALB request-count-based autoscaling policy."
+  default     = false
+}
+
+variable "search_service_autoscaling_cpu_target" {
+  type        = number
+  description = "Target CPU utilization percentage for autoscaling."
+  default     = 60
+}
+
+variable "search_service_autoscaling_requests_per_target" {
+  type        = number
+  description = "Target number of requests per target when request-based scaling is enabled."
+  default     = 50
+}
+
+variable "search_service_scale_in_cooldown_seconds" {
+  type        = number
+  description = "Cooldown period after a scale-in event."
+  default     = 120
+}
+
+variable "search_service_scale_out_cooldown_seconds" {
+  type        = number
+  description = "Cooldown period after a scale-out event."
+  default     = 60
+}
+
+variable "lambda_container_image" {
+  type        = string
+  description = "Container image URI for the Lambda search runtime."
+  default     = ""
+}
+
+variable "lambda_architecture" {
+  type        = string
+  description = "CPU architecture for the Lambda function (x86_64 or arm64)."
+  default     = "x86_64"
+
+  validation {
+    condition     = contains(["x86_64", "arm64"], lower(var.lambda_architecture))
+    error_message = "lambda_architecture must be either \"x86_64\" or \"arm64\"."
+  }
+}
+
+variable "lambda_timeout_seconds" {
+  type        = number
+  description = "Lambda function timeout in seconds."
+  default     = 30
+}
+
+variable "lambda_memory_mb" {
+  type        = number
+  description = "Amount of memory (in MB) allocated to the Lambda function."
+  default     = 1024
+}
+
+variable "lambda_enable_ephemeral_storage" {
+  type        = bool
+  description = "Enable custom ephemeral storage sizing for the Lambda runtime."
+  default     = false
+}
+
+variable "lambda_ephemeral_storage_mb" {
+  type        = number
+  description = "Ephemeral storage size in MB when custom storage is enabled."
+  default     = 1024
+}
+
+variable "lambda_enable_provisioned_concurrency" {
+  type        = bool
+  description = "Enable provisioned concurrency for predictable latency."
+  default     = false
+}
+
+variable "lambda_provisioned_concurrency_count" {
+  type        = number
+  description = "Number of provisioned concurrent executions to maintain when enabled."
+  default     = 2
+}
+
+variable "lambda_log_level" {
+  type        = string
+  description = "Default log level for the Lambda runtime."
+  default     = "INFO"
+}
+
+variable "lambda_metrics_namespace" {
+  type        = string
+  description = "Metrics namespace emitted by the Lambda runtime."
+  default     = "SemanticSearch/Runtime"
+}
+
+variable "lambda_enable_request_tracing" {
+  type        = bool
+  description = "Enable request-level tracing headers in the Lambda runtime."
+  default     = false
+}
+
+variable "lambda_enable_query_logging" {
+  type        = bool
+  description = "Enable structured query logging in the Lambda runtime."
+  default     = false
+}
+
+variable "lambda_max_concurrent_queries" {
+  type        = number
+  description = "Maximum concurrent queries processed by the Lambda runtime."
+  default     = 100
+}
+
+variable "lambda_default_top_k" {
+  type        = number
+  description = "Default number of results returned per query."
+  default     = 10
+}
+
+variable "lambda_max_top_k" {
+  type        = number
+  description = "Maximum number of results allowed per query."
+  default     = 200
+}
+
+variable "lambda_candidate_multiplier" {
+  type        = number
+  description = "Candidate multiplier applied before post-query filtering."
+  default     = 3
+}
+
+variable "lambda_healthcheck_path" {
+  type        = string
+  description = "Healthcheck endpoint path exposed by the Lambda runtime."
+  default     = "/healthz"
+}
+
+variable "lambda_readiness_path" {
+  type        = string
+  description = "Readiness endpoint path exposed by the Lambda runtime."
+  default     = "/readyz"
+}
+
+variable "lambda_environment_variables" {
+  type        = map(string)
+  description = "Additional plain-text environment variables for the Lambda runtime."
+  default     = {}
+}
+
+variable "lambda_secret_arn_values" {
+  type        = map(string)
+  description = "Mapping of environment variable names to Secrets Manager ARNs for the Lambda runtime."
+  default     = {}
+}
+
+variable "lambda_log_retention_in_days" {
+  type        = number
+  description = "CloudWatch Logs retention period for the Lambda runtime."
+  default     = 14
+}
+
+variable "lambda_api_gateway_timeout_ms" {
+  type        = number
+  description = "Timeout (in milliseconds) for the API Gateway integration."
+  default     = 29000
+}
+
+variable "lambda_api_gateway_stage" {
+  type        = string
+  description = "API Gateway stage name for the Lambda runtime."
+  default     = "$default"
+}
+
+variable "lambda_xray_tracing_mode" {
+  type        = string
+  description = "X-Ray tracing mode for the Lambda function (PassThrough or Active)."
+  default     = "PassThrough"
+
+  validation {
+    condition     = contains(["PassThrough", "Active"], var.lambda_xray_tracing_mode)
+    error_message = "lambda_xray_tracing_mode must be either \"PassThrough\" or \"Active\"."
+  }
+}
+
+variable "lambda_alarm_throttle_threshold" {
+  type        = number
+  description = "Threshold for Lambda throttles that triggers a CloudWatch alarm."
+  default     = 1
+}
+
+variable "lambda_additional_security_group_ids" {
+  type        = list(string)
+  description = "Additional security groups attached to the Lambda ENIs."
+  default     = []
 }
 
 variable "search_runtime" {

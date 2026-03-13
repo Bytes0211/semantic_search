@@ -149,11 +149,40 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Implemented shared `EmbeddingProvider` base interface and provider factory registry (`semantic_search/embeddings/`).
 - ✅ Delivered Bedrock, Spot-hosted OSS, and SageMaker embedding adapters — all registered via factory and covered by unit tests.
 - ✅ Provisioned NumPy-backed vector store (`NumpyVectorStore`) with L2, cosine, and inner-product metrics, idempotent upsert, metadata persistence, and save/load roundtrip.
-- ✅ Wired end-to-end `EmbeddingPipeline` connecting provider, vector store, and S3 backup pathway.
-- ✅ Full test suite green: 40 tests passing across embeddings, pipeline, and vector store modules.
+- ✅ Fixed `upsert()` to honor its silent-overwrite contract by inlining insert logic directly, bypassing the `add()` warning path.
+- ✅ Hardened `NumpyVectorStore.load()` with `VectorStoreError` for missing files, malformed metadata keys, ID/vector count mismatch, and per-row shape validation; `allow_pickle=False` enforced on `np.load`.
+- ✅ Added `SageMakerInvocationError` guard for empty `embeddings` list — fails immediately at the provider boundary instead of silently propagating a `[]` into `_coerce_vector`.
+- ✅ Wired end-to-end `EmbeddingPipeline` with two-phase S3 backup: files staged to a timestamped prefix; `latest` pointer written only after both uploads succeed.
+- ✅ Added `backup_error: Optional[str]` to `PipelineResult` — S3 backup failures caught, logged, and recorded without discarding an otherwise successful run result.
+- ✅ Added silent-record-loss detection in `_process_batch` — records omitted from provider output are logged and counted as failures.
+- ✅ Full test suite green: 50 tests passing across embeddings, pipeline, and vector store modules.
+
+### Phase 4 — Search Runtime & Interfaces
+- ✅ Built FastAPI-based REST service (`semantic_search/runtime/api.py`) with health/readiness probes and the `/v1/search` endpoint.
+- ✅ Delivered CLI tooling (`semantic_search/runtime/cli.py`) for ad-hoc searches using shared runtime orchestration.
+- ✅ Added deterministic runtime fixtures and tests (`tests/runtime/`) validating core search logic and API wiring; test suite now 55 passing tests.
+- ✅ Expanded package exports and CLI entry point (`semantic_search/__init__.py`, `pyproject.toml`) to support runtime consumption across deployment targets.
+- ✅ Scaffolded full Terraform for both ECS/Fargate and Lambda runtimes (`infrastructure/modules/search_service_fargate`, `infrastructure/modules/search_service_lambda`) and wired them into the dev stack with autoscaling and configuration defaults.
+- ✅ Fleshed out the observability module (`infrastructure/modules/observability/main.tf`, `variables.tf`, `README.md`) with CloudWatch dashboards (latency, error rate, queue depth, log widgets), alarms with configurable thresholds, and SNS notification wiring — consumes runtime outputs from either deployment mode.
+- ✅ Expanded runtime module outputs for both Fargate (`outputs.tf`) and Lambda (`outputs.tf`) to expose ARN suffixes, log group names, autoscaling resource IDs, and API identifiers needed by dashboards, alarms, and runbooks.
+- ✅ Completed dev environment wire-up (`infrastructure/environments/dev/main.tf`): full Lambda module configuration, normalised observability inputs for either runtime, and additional stack-level outputs for logs and service identifiers.
+- ✅ Created example tfvars for both runtime profiles (`infrastructure/environments/dev/examples/fargate.tfvars.example`, `lambda.tfvars.example`) and documented apply instructions in `infrastructure/README.md`.
+- ✅ Authored the runtime deployment runbook (`developer/runbooks/runtime_deploy.md`) covering init/plan/apply, Fargate and Lambda validation checklists, observability wiring steps, runtime switching, rollback procedures, and post-deployment tasks.
+- ✅ Implemented the lightweight validation UI (`semantic_search/runtime/ui.py`) — single-page HTML/JS interface served at `/ui` via FastAPI that submits queries to `/v1/search` and renders ranked results with scores and metadata. Enabled via `create_app(enable_ui=True)` or `mount_ui(app)`; disabled by default. Self-contained with no external CDN dependencies.
+- ✅ Updated `main.py` as a production-capable uvicorn launcher — reads `VECTOR_STORE_PATH`, `EMBEDDING_BACKEND`, `ENABLE_UI`, `HOST`, `PORT`, and `LOG_LEVEL` from environment; starts without a runtime when no store path is supplied so the container is healthy before an index is loaded.
+- ✅ Phase 4 fully complete: test suite at 67 passing tests (12 new UI tests).
+
+### Phase 5 — Quality & Launch Readiness
+- Run `terraform apply` against the dev environment for the chosen runtime; execute the full validation checklist in `developer/runbooks/runtime_deploy.md`.
+- Build and execute the relevance evaluation suite targeting ≥90% hit rate on representative query sets.
+- Conduct latency benchmarking with Locust targeting <1s P95; establish a baseline before optimising.
+- Complete cost optimisation review: right-size compute, confirm spot capacity usage, and validate S3 lifecycle policies.
+- Produce the documentation handoff package: runbooks, Terraform variable reference, and client deployment playbooks.
 
 ### Next Steps
-- Begin **Phase 4 — Search Runtime & Interfaces**: build the semantic search REST API and CLI, deploy to ECS/Fargate and Lambda runtimes, and integrate observability dashboards.
+- Populate real account values in `infrastructure/environments/dev/examples/fargate.tfvars.example`, copy to `terraform.tfvars`, and run `terraform init / plan / apply`.
+- Execute the validation checklist in `developer/runbooks/runtime_deploy.md`; record results and iterate on the runbook.
+- Begin Phase 5 delivery: relevance evaluation, load testing, and handoff documentation.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
