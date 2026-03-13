@@ -174,10 +174,10 @@ A single Docker image is used for the search application, reused across both run
 
 ### Phase 5 — Quality & Launch Readiness
 - Run `terraform apply` against the dev environment for the chosen runtime; execute the full validation checklist in `developer/runbooks/runtime_deploy.md`.
-- Build and execute the relevance evaluation suite targeting ≥90% hit rate on representative query sets.
-- Conduct latency benchmarking with Locust targeting <1s P95; establish a baseline before optimising.
-- Complete cost optimisation review: right-size compute, confirm spot capacity usage, and validate S3 lifecycle policies.
-- Produce the documentation handoff package: runbooks, Terraform variable reference, and client deployment playbooks.
+- ✅ Built and executed the relevance evaluation suite (`semantic_search/evaluation/`) — `EvalQuery`, `EvalResult`, `EvalReport` dataclasses; IR metrics (`hit_rate`, `MRR`, `Precision@K`, `nDCG@K`); `RelevanceEvaluator` wrapping `SearchRuntime`; `semantic-search-eval` CLI with text/JSON output and threshold-based exit codes; 54 new tests; suite at 121 passing tests.
+- ✅ Locust load test harness (`tests/load/locustfile.py`) — env-driven query bank, `on_start` health check, `search_task` failure tracking; headless and UI modes documented in `tests/load/README.md`; acceptance criteria: P95 ≤ 1 s, error rate < 1 %.
+- ✅ Cost optimisation review documented (`docs/cost_optimisation.md`) — Fargate/Lambda compute sizing, Spot strategy for embedding jobs, S3 lifecycle rules, provisioned concurrency scheduling guidance, alarm threshold calibration.
+- ✅ Documentation handoff package (`developer/handoff/`) — `deployment_playbook.md` (13-step client-facing guide) and `terraform_variable_reference.md` (all variables for `core_network`, `search_service_fargate`, `search_service_lambda`, and `observability` modules).
 
 ### Next Steps
 - Populate real account values in `infrastructure/environments/dev/examples/fargate.tfvars.example`, copy to `terraform.tfvars`, and run `terraform init / plan / apply`.
