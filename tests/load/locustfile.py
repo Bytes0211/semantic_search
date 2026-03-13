@@ -133,9 +133,6 @@ class SearchUser(HttpUser):
     host = os.environ.get("TARGET_HOST", _DEFAULT_HOST)
     wait_time = between(0.5, 2.0)
 
-    # Failure counter exposed on the instance for assertion in integration tests.
-    failure_count: int = 0
-
     def on_start(self) -> None:
         """Validate that the service is healthy before issuing queries.
 
@@ -182,7 +179,6 @@ class SearchUser(HttpUser):
             if response.status_code == 200:
                 response.success()
             else:
-                self.failure_count += 1
                 response.failure(
                     f"/v1/search returned status {response.status_code}: "
                     f"{response.text[:200]}"

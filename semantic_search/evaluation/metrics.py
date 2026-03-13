@@ -108,10 +108,10 @@ def ndcg_at_k(returned_ids: List[str], relevant_ids: RelevantSet) -> float:
     ideal_count = min(len(relevant_ids), len(returned_ids))
     if ideal_count == 0:
         return 0.0
-    ideal_ids = list(relevant_ids)[:ideal_count]
-    ideal = dcg_at_k(ideal_ids, relevant_ids)
-    if ideal == 0.0:
-        return 0.0
+    # Compute IDCG directly: place ideal_count relevant docs at ranks 1…ideal_count.
+    # This avoids a set→list conversion (non-deterministic order) and is robust
+    # against future graded-relevance extensions where ordering would matter.
+    ideal = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_count + 1))
     return actual / ideal
 
 

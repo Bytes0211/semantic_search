@@ -123,3 +123,7 @@ connection failures without aborting the run.
 
 **High error rate** — Check the service logs; common causes are an
 uninitialised vector store (503 from `/readyz`) or invalid request payloads.
+Use Locust's built-in failure statistics (displayed in the web UI and
+`--csv` output under `*_failures.csv`) to inspect failure counts and messages;
+these cover both HTTP-level errors and network-level exceptions (timeouts,
+connection resets).
