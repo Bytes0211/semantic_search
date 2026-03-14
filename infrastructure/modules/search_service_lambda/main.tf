@@ -244,28 +244,3 @@ resource "aws_cloudwatch_metric_alarm" "lambda_throttle" {
 
   tags = local.common_tags
 }
-
-output "function_arn" {
-  description = "ARN of the Lambda search runtime function."
-  value       = aws_lambda_function.search.arn
-}
-
-output "function_name" {
-  description = "Name of the Lambda function."
-  value       = aws_lambda_function.search.function_name
-}
-
-output "api_endpoint" {
-  description = "HTTP API endpoint exposing the search runtime."
-  value       = "${aws_apigatewayv2_api.http_api.api_endpoint}/${aws_apigatewayv2_stage.default.name}"
-}
-
-output "log_group_name" {
-  description = "CloudWatch log group capturing Lambda runtime logs."
-  value       = aws_cloudwatch_log_group.lambda.name
-}
-
-output "security_group_id" {
-  description = "Security group attached to the Lambda function ENIs."
-  value       = aws_security_group.lambda.id
-}

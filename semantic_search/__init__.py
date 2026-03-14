@@ -6,6 +6,8 @@ to import from ``semantic_search`` directly without drilling into subpackages.
 """
 
 from .embeddings.base import EmbeddingInput, EmbeddingProvider, EmbeddingResult
+from .evaluation.schema import EvalQuery, EvalReport, EvalResult
+from .evaluation.evaluator import RelevanceEvaluator
 from .runtime.api import (
     SearchRequest,
     SearchResponse,
@@ -24,6 +26,10 @@ __all__ = [
     "EmbeddingInput",
     "EmbeddingProvider",
     "EmbeddingResult",
+    "EvalQuery",
+    "EvalResult",
+    "EvalReport",
+    "RelevanceEvaluator",
     "SearchRequest",
     "SearchResponse",
     "SearchResultItem",

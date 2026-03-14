@@ -9,9 +9,7 @@ terraform {
   }
 }
 
-data "aws_region" "current" {
-  current = true
-}
+data "aws_region" "current" {}
 
 locals {
   name_prefix = var.name_prefix != "" ? var.name_prefix : "${var.project}-${var.environment}-observability"
@@ -58,6 +56,7 @@ locals {
       metrics = [
         [local.runtime_metrics_namespace, "QueryLatencyP95", "ServiceName", local.search_service_identifier]
       ]
+      region = data.aws_region.current.id
       stat   = "Average"
       period = 60
       title  = "Search Runtime P95 Latency"
@@ -81,6 +80,7 @@ locals {
       metrics = [
         [local.runtime_metrics_namespace, "QueryErrorRate", "ServiceName", local.search_service_identifier]
       ]
+      region = data.aws_region.current.id
       stat   = "Average"
       period = 60
       title  = "Search Runtime Error Rate (%)"
@@ -105,6 +105,7 @@ locals {
       metrics = [
         ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", local.ingestion_queue_name]
       ]
+      region = data.aws_region.current.id
       stat   = "Average"
       period = 60
       title  = "Ingestion Queue Depth"
@@ -138,7 +139,7 @@ locals {
 
       properties = {
         query  = format("SOURCE '%s' | %s", item.group, item.query)
-        region = data.aws_region.current.name
+        region = data.aws_region.current.id
         title  = format("%s Logs", item.key)
         view   = "table"
       }
@@ -153,7 +154,7 @@ locals {
 }
 
 resource "aws_cloudwatch_dashboard" "main" {
-  count = var.enable_dashboards && length(local.dashboard_widgets) > 0 ? 1 : 0
+  count = var.enable_dashboards ? 1 : 0
 
   dashboard_name = "${local.name_prefix}-cw-dashboard"
   dashboard_body = local.dashboard_body

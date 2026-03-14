@@ -260,7 +260,6 @@ resource "aws_ecs_task_definition" "this" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-create-group  = "false"
           awslogs-group         = aws_cloudwatch_log_group.this.name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = "ecs"
@@ -355,16 +354,14 @@ resource "aws_appautoscaling_policy" "request_count" {
       statistic   = "Sum"
       unit        = "Count"
 
-      dimensions = [
-        {
-          name  = "LoadBalancer"
-          value = aws_lb.this.arn_suffix
-        },
-        {
-          name  = "TargetGroup"
-          value = aws_lb_target_group.this.arn_suffix
-        }
-      ]
+      dimensions {
+        name  = "LoadBalancer"
+        value = aws_lb.this.arn_suffix
+      }
+      dimensions {
+        name  = "TargetGroup"
+        value = aws_lb_target_group.this.arn_suffix
+      }
     }
 
     scale_in_cooldown  = var.scale_in_cooldown_seconds
@@ -372,37 +369,3 @@ resource "aws_appautoscaling_policy" "request_count" {
   }
 }
 
-output "cluster_id" {
-  description = "ECS cluster hosting the semantic search service."
-  value       = aws_ecs_cluster.this.id
-}
-
-output "service_name" {
-  description = "Name of the ECS service managing runtime tasks."
-  value       = aws_ecs_service.this.name
-}
-
-output "task_role_arn" {
-  description = "IAM role ARN assumed by ECS tasks."
-  value       = aws_iam_role.task.arn
-}
-
-output "execution_role_arn" {
-  description = "IAM execution role ARN for ECS tasks."
-  value       = aws_iam_role.task_execution.arn
-}
-
-output "load_balancer_dns" {
-  description = "DNS name of the Application Load Balancer."
-  value       = aws_lb.this.dns_name
-}
-
-output "target_group_arn" {
-  description = "ARN of the target group forwarding traffic to the service."
-  value       = aws_lb_target_group.this.arn
-}
-
-output "log_group_name" {
-  description = "CloudWatch Log Group capturing application logs."
-  value       = aws_cloudwatch_log_group.this.name
-}
