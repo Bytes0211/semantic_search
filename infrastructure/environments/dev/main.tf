@@ -189,7 +189,9 @@ module "search_service_fargate" {
   environment                       = var.environment
   aws_region                        = var.aws_region
   vpc_id                            = module.core_network.vpc_id
-  subnet_ids                        = module.core_network.private_subnet_ids
+  # In dev there is no NAT gateway; tasks use public subnets with assign_public_ip=true
+  # so they can reach ECR and Bedrock without a NAT.
+  subnet_ids                        = module.core_network.public_subnet_ids
   public_subnet_ids                 = module.core_network.public_subnet_ids
   additional_security_group_ids     = var.search_service_additional_security_group_ids
   allowed_ingress_cidrs             = var.search_service_allowed_ingress_cidrs

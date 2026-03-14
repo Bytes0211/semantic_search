@@ -173,16 +173,60 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Phase 4 fully complete: test suite at 67 passing tests (12 new UI tests).
 
 ### Phase 5 — Quality & Launch Readiness
-- Run `terraform apply` against the dev environment for the chosen runtime; execute the full validation checklist in `developer/runbooks/runtime_deploy.md`.
+- ✅ Run `terraform apply` against the dev environment for the chosen runtime; execute the full validation checklist in `developer/runbooks/runtime_deploy.md`.
 - ✅ Built and executed the relevance evaluation suite (`semantic_search/evaluation/`) — `EvalQuery`, `EvalResult`, `EvalReport` dataclasses; IR metrics (`hit_rate`, `MRR`, `Precision@K`, `nDCG@K`); `RelevanceEvaluator` wrapping `SearchRuntime`; `semantic-search-eval` CLI with text/JSON output and threshold-based exit codes; 54 new tests; suite at 121 passing tests.
 - ✅ Locust load test harness (`tests/load/locustfile.py`) — env-driven query bank, `on_start` health check, `search_task` failure tracking; headless and UI modes documented in `tests/load/README.md`; acceptance criteria: P95 ≤ 1 s, error rate < 1 %.
 - ✅ Cost optimisation review documented (`docs/cost_optimisation.md`) — Fargate/Lambda compute sizing, Spot strategy for embedding jobs, S3 lifecycle rules, provisioned concurrency scheduling guidance, alarm threshold calibration.
 - ✅ Documentation handoff package (`developer/handoff/`) — `deployment_playbook.md` (13-step client-facing guide) and `terraform_variable_reference.md` (all variables for `core_network`, `search_service_fargate`, `search_service_lambda`, and `observability` modules).
 
+### Deployment — AWS Fargate (dev) — Complete
+- ✅ Created `Dockerfile`, `.dockerignore`, and `buildspec.yml`; container image built and pushed to ECR via AWS CodeBuild project `semantic-search-image-build` (~85 MB, base `public.ecr.aws/docker/library/python:3.12-slim`).
+- ✅ Implemented missing Terraform module stubs (`data_plane`, `embedding_bedrock`, `vector_store/faiss`) and corrected validation bugs across `core_network`, `observability`, `search_service_fargate`, `search_service_lambda`, and `embedding_bedrock` modules.
+- ✅ Created `infrastructure/environments/dev/terraform.tfvars`; `terraform apply` completed — **53 resources created** (VPC, ECS Fargate cluster/service, ALB, S3 buckets, CloudWatch dashboards/alarms, IAM roles).
+- ✅ Health check confirmed: `GET /healthz → 200 {"status":"ok"}`; `/readyz → 503` expected (no index loaded yet).
+- ✅ Git tag `runtime-v0.1.0` created.
+
+**Live endpoints (dev):**
+- ALB: `http://<alb-dns-name>.us-east-1.elb.amazonaws.com`
+- ECR image: `<aws-account-id>.dkr.ecr.<region>.amazonaws.com/semantic-search:main`
+- ECS cluster / service: `<project>-dev-search-cluster` / `<project>-dev-search-service`
+- FAISS index bucket: `s3://<project>-dev-faiss-index/vector_store/current/`
+
+### Phase 6 — Web UI (Planned)
+**Status:** Not started — pending Phase 5 sign-off.
+
+**Chosen stack:**
+- **React 18 + TypeScript** — component model maps to search UI primitives (SearchBar, ResultCard, FilterPanel, Pagination); TypeScript enforced for client deliverable quality
+- **Vite** — build tooling; zero-config `/v1` proxy to FastAPI for local dev; outputs static assets for production deployment
+- **Tailwind CSS v4** — utility-first styling co-located with components; replaces SASS (modern CSS + component libraries reduce SASS value)
+- **TanStack Query** — async search state, loading/error/stale handling against `/v1/search`
+- **Shadcn/ui** — accessible, unstyled component primitives built on Radix UI; Tailwind-native; consumer owns the code (no external CSS lock-in)
+- **FastAPI** — backend unchanged; add CORS middleware; optionally mount `dist/` via `StaticFiles` for single-deployment mode
+
+**Why React over HTMX:** `/v1/search` returns JSON (not HTML fragments); existing `/ui` is already client-rendered; frontend should be independently deployable (S3 + CloudFront option). HTMX is better for internal server-rendered tooling; React is appropriate for a deliverable product.
+
+**Deployment options (both supported by this stack):**
+1. FastAPI serves built `dist/` via `StaticFiles` mount — single container, no extra infra
+2. `dist/` deployed to S3 + CloudFront — CDN delivery, separate from API lifecycle
+
+**Planned directory layout:**
+```
+frontend/
+├── src/
+│   ├── components/      # SearchBar, ResultCard, FilterPanel, Pagination
+│   ├── hooks/           # useSearch (TanStack Query wrapper over /v1/search)
+│   └── App.tsx
+├── vite.config.ts       # proxy /v1 → FastAPI
+└── package.json
+```
+
+**Prerequisite:** Live index loaded (`/readyz → 200`) so search results are meaningful during UI development.
+
 ### Next Steps
-- Populate real account values in `infrastructure/environments/dev/examples/fargate.tfvars.example`, copy to `terraform.tfvars`, and run `terraform init / plan / apply`.
-- Execute the validation checklist in `developer/runbooks/runtime_deploy.md`; record results and iterate on the runbook.
-- Begin Phase 5 delivery: relevance evaluation, load testing, and handoff documentation.
+- Build a FAISS index and upload to `s3://semantic-search-dev-faiss-index/vector_store/current/` to enable `/readyz → 200` and activate `/v1/search`.
+- Update the ECS task definition to set `VECTOR_STORE_PATH` pointing at the S3 prefix after index upload.
+- Run the relevance evaluation suite (`semantic-search-eval`) and Locust load tests against the live ALB endpoint once an index is loaded.
+- Generate test data (synthetic vectors or themed corpora) to exercise search functionality before client delivery.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures

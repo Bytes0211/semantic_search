@@ -4,8 +4,6 @@ A semantic search system that uses LLM-powered embeddings and vector search to e
 
 ## Problem
 
-Organizations store valuable information across databases, CRMs, spreadsheets, and legacy systems but rely on keyword-only search that fails to surface relevant insights. This leads to poor search accuracy, slow manual review, and missed connections across data sources.
-
 ```mermaid
 sequenceDiagram
     participant DS as Data Sources<br/>(CSV/SQL/JSON/API)
@@ -29,6 +27,8 @@ sequenceDiagram
     API-->>CLI: Ranked results (+ optional re-ranking)
 
 ```
+
+Organizations store valuable information across databases, CRMs, spreadsheets, and legacy systems but rely on keyword-only search that fails to surface relevant insights. This leads to poor search accuracy, slow manual review, and missed connections across data sources.
 
 ## Key Features
 
@@ -59,6 +59,19 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 3 — Embedding & Vector Services:** Complete. Bedrock, Spot, and SageMaker adapters implemented; NumPy vector store with cosine/L2/inner-product metrics, persistence, and idempotent upserts delivered; end-to-end embedding pipeline with two-phase S3 backup and resilient error handling wired; 50 tests passing.
 - **Phase 4 — Search Runtime & Interfaces:** Complete. FastAPI REST API, CLI, and lightweight validation UI (`/ui`) delivered; full Terraform modules for Fargate and Lambda runtimes, observability module (dashboards/alarms/log widgets), example tfvars, and deployment runbook in place; 67 tests passing. Environment `terraform apply` and smoke-test validation pending.
 - **Phase 5 — Quality & Launch Readiness:** Complete. Relevance evaluation suite (`semantic-search-eval` CLI, 5 IR metrics, 54 new tests); Locust load test harness with acceptance criteria; cost optimisation guide; client deployment playbook and Terraform variable reference; 121 tests passing.
+- **Deployment — AWS Fargate (dev):** Complete. 53 resources provisioned via `terraform apply`; container image (~85 MB) built and pushed to ECR via CodeBuild; `GET /healthz → 200`; git tag `runtime-v0.1.0` created. `/readyz → 503` until a FAISS index is uploaded to S3.
+
+## Live Environment (dev)
+
+| Resource | Value |
+|---|---|
+| ALB endpoint | `http://<alb-dns-name>.us-east-1.elb.amazonaws.com` |
+| ECR image | `<aws-account-id>.dkr.ecr.<region>.amazonaws.com/semantic-search:main` |
+| ECS cluster | `<project>-dev-search-cluster` |
+| FAISS index bucket | `s3://<project>-dev-faiss-index/vector_store/current/` |
+
+> `/readyz` returns 503 until a FAISS index is uploaded to the bucket above and `VECTOR_STORE_PATH` is set in the task definition.
+
 ## Tech Stack
 
 - **Python** 3.12+
@@ -102,6 +115,7 @@ VECTOR_STORE_PATH=./my_index ENABLE_UI=true uv run python main.py
 ├── pyproject.toml           # Project metadata and dependencies
 ├── semantic_search/
 │   ├── embeddings/          # Provider interface, Bedrock/Spot/SageMaker adapters, factory
+│   ├── evaluation/          # Relevance evaluation suite (EvalQuery, metrics, CLI)
 │   ├── pipeline/            # EmbeddingPipeline (provider → vector store → S3)
 │   ├── runtime/             # FastAPI search service, CLI tooling
 │   └── vectorstores/        # NumpyVectorStore (L2, cosine, inner-product)
@@ -145,6 +159,10 @@ Infrastructure is managed through Terraform variables:
 - [Process Flow & Configuration Toggles](developer/process-flow.md)
 - [Container Build & Deployment](developer/container_pipeline.md)
 - [Runtime Deployment Runbook](developer/runbooks/runtime_deploy.md)
+- [Data Deployment & Testing Guide](developer/guides/data_and_testing_guide.md)
+- [Cost Optimisation Guide](docs/cost_optimisation.md)
+- [Deployment Playbook](developer/handoff/deployment_playbook.md)
+- [Terraform Variable Reference](developer/handoff/terraform_variable_reference.md)
 - [Agent Guidelines](AGENTS.md)
 
 ## License
