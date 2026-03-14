@@ -187,10 +187,10 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Git tag `runtime-v0.1.0` created.
 
 **Live endpoints (dev):**
-- ALB: `http://semantic-search-dev-search-alb-396758317.us-east-1.elb.amazonaws.com`
-- ECR image: `696056865313.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main`
-- ECS cluster / service: `semantic-search-dev-search-cluster` / `semantic-search-dev-search-service`
-- FAISS index bucket: `s3://semantic-search-dev-faiss-index/vector_store/current/`
+- ALB: `http://<alb-dns-name>.us-east-1.elb.amazonaws.com`
+- ECR image: `<aws-account-id>.dkr.ecr.<region>.amazonaws.com/semantic-search:main`
+- ECS cluster / service: `<project>-dev-search-cluster` / `<project>-dev-search-service`
+- FAISS index bucket: `s3://<project>-dev-faiss-index/vector_store/current/`
 
 ### Phase 6 — Web UI (Planned)
 **Status:** Not started — pending Phase 5 sign-off.

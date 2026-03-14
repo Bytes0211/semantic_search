@@ -65,10 +65,10 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 
 | Resource | Value |
 |---|---|
-| ALB endpoint | `http://semantic-search-dev-search-alb-396758317.us-east-1.elb.amazonaws.com` |
-| ECR image | `696056865313.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main` |
-| ECS cluster | `semantic-search-dev-search-cluster` |
-| FAISS index bucket | `s3://semantic-search-dev-faiss-index/vector_store/current/` |
+| ALB endpoint | `http://<alb-dns-name>.us-east-1.elb.amazonaws.com` |
+| ECR image | `<aws-account-id>.dkr.ecr.<region>.amazonaws.com/semantic-search:main` |
+| ECS cluster | `<project>-dev-search-cluster` |
+| FAISS index bucket | `s3://<project>-dev-faiss-index/vector_store/current/` |
 
 > `/readyz` returns 503 until a FAISS index is uploaded to the bucket above and `VECTOR_STORE_PATH` is set in the task definition.
 
