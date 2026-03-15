@@ -4,7 +4,7 @@ set -euo pipefail
 # Spot uses a local hash-based embedding stub — no AWS credentials required.
 # PROVIDER_CONFIG_JSON only needs the dimension to match the index.
 if [[ -z "${PROVIDER_CONFIG_JSON:-}" ]]; then
-  export PROVIDER_CONFIG_JSON='{"dimension": 768}'
+  export PROVIDER_CONFIG_JSON='{"dimension": 384}'
 fi
 
 ###############################################################################

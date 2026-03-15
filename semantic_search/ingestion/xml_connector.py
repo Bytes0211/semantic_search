@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import glob as _glob
-import itertools
 from pathlib import Path
 from typing import Dict, Iterator, Mapping, Sequence
 from xml.etree import ElementTree as ET
@@ -116,7 +115,7 @@ def _build_connector(config: Mapping[str, object]) -> DataSourceConnector:
         if value is None:
             return []
         if isinstance(value, (list, tuple)):
-            return list(itertools.chain.from_iterable([value]))
+            return [str(item) for item in value]
         raise DataSourceError(
             f"Expected list/tuple for '{name}', got {type(value).__name__}"
         )

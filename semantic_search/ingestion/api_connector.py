@@ -12,6 +12,7 @@ handled in :mod:`.mongodb_connector`.
 from __future__ import annotations
 
 import os
+import time
 from typing import TYPE_CHECKING, Any, Dict, Iterator, Mapping, MutableMapping, Optional, Sequence
 
 if TYPE_CHECKING:
@@ -63,11 +64,14 @@ class ApiConnector(DataSourceConnector):
         self._headers: Dict[str, str] = dict(headers or {})
 
         if auth_header:
-            token = os.getenv(auth_token_env or "", "")
+            if not auth_token_env:
+                raise DataSourceError(
+                    "'auth_token_env' must be specified when 'auth_header' is set."
+                )
+            token = os.getenv(auth_token_env, "")
             if not token:
                 raise DataSourceError(
-                    "API connector authentication requested but token environment "
-                    f"variable '{auth_token_env}' is not set or empty."
+                    f"API connector: environment variable '{auth_token_env}' is not set or empty."
                 )
             self._headers[auth_header] = token
 
@@ -136,6 +140,7 @@ class ApiConnector(DataSourceConnector):
                     raise DataSourceError(
                         f"API request to '{url}' failed after {self._max_retries + 1} attempts: {exc}"
                     ) from exc
+                time.sleep(2 ** attempt)  # 1 s, 2 s, 4 s …
         raise DataSourceError(
             f"Unexpected failure issuing request to '{url}': {last_exc}"
         )

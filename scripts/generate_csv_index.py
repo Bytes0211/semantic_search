@@ -53,7 +53,7 @@ DEFAULT_ID_FIELD = "id"
 DEFAULT_METADATA_FIELDS = "category,author"
 DEFAULT_OUTPUT = "./csv_spot_index"
 DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-DEFAULT_DIM = 768
+DEFAULT_DIM = 384
 
 
 def extract_inputs(

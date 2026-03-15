@@ -25,7 +25,7 @@ class SpotEmbeddingProvider(EmbeddingProvider):
         self,
         *,
         model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-        dimension: int = 768,
+        dimension: int = 384,
         normalize: bool = True,
         salt: str = "semantic-search",
     ) -> None:
@@ -122,7 +122,7 @@ def _spot_factory(config: Mapping[str, Any]) -> SpotEmbeddingProvider:
         model_name=str(
             config.get("model_name", "sentence-transformers/all-MiniLM-L6-v2")
         ),
-        dimension=int(config.get("dimension", 768)),
+        dimension=int(config.get("dimension", 384)),
         normalize=bool(config.get("normalize", True)),
         salt=str(config.get("salt", "semantic-search")),
     )
