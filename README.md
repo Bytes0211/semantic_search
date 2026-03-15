@@ -33,7 +33,8 @@ Organizations store valuable information across databases, CRMs, spreadsheets, a
 ## Key Features
 
 - **Natural-language search** across CSV, SQL, JSON, and API data sources
-- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, and REST API adapters normalise records into a shared schema for the embedding pipeline (see `developer/pluggable_data_sources.md`)
+- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, REST API, and MongoDB adapters normalise records into a shared schema for the embedding pipeline (see `developer/pluggable_data_sources.md`)
+- **Text preprocessing pipeline** — `TextCleaner` (HTML strip, Unicode normalisation, whitespace collapse), `TextChunker` (word-boundary splits with configurable size/overlap), and `PreprocessingPipeline` wiring them together with optional opt-in per stage
 - **Pluggable embedding providers** — AWS Bedrock, Spot-hosted open-source models, SageMaker
 - **Multiple vector stores** — FAISS, Qdrant, or pgvector
 - **Flexible deployment** — ECS/Fargate or Lambda, toggled via Terraform configuration
@@ -63,6 +64,7 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 5 — Quality & Launch Readiness:** Complete. Relevance evaluation suite (`semantic-search-eval` CLI, 5 IR metrics, 54 new tests); Locust load test harness with acceptance criteria; cost optimisation guide; client deployment playbook and Terraform variable reference; 121 tests passing.
 - **Deployment — AWS Fargate (dev):** Complete. 53 resources provisioned via `terraform apply`; container image (~85 MB) built and pushed to ECR via CodeBuild; `GET /healthz → 200`; git tag `runtime-v0.1.0` created. `/readyz → 503` until a FAISS index is uploaded to S3.
 - **Phase 6 — Web UI:** Complete. React 18 + TypeScript SPA in `frontend/` with SearchBar, ResultCard, FilterPanel, Pagination, AnalyticsPanel, and hooks (useSearch, useConfig, useAnalytics, useDebounce). Tier-gated analytics panel via `GET /v1/config`. 15 component tests (Vitest + RTL). Production build in `frontend/dist/`.
+- **feature/data-abstraction — Data Abstraction & Preprocessing:** Complete. Six pluggable connectors (`ingestion/` package: CSV, SQL, JSON/JSONL, XML, REST API, MongoDB), text preprocessing pipeline (`preprocessing/` package: TextCleaner, TextChunker, PreprocessingPipeline), sample dataset (`data/sample.csv`), index generation scripts (`scripts/generate_csv_index.py`, `scripts/generate_pg_index.py`), three validation runner scripts (`test_spot_csv_server.sh`, `test_bedrock_json_server.sh`, `test_bedrock_pg_server.sh`), functional process flow doc, and 9 PR review fixes applied. Test suite: 208 passing.
 
 ## Live Environment (dev)
 
@@ -129,19 +131,31 @@ cd frontend && npm install && npm run dev
 │   ├── dist/                # Production build output
 │   ├── vite.config.ts       # /v1 proxy to FastAPI, Tailwind v4 plugin
 │   └── package.json
+├── data/
+│   └── sample.csv           # 20-row sample dataset for local development
 ├── semantic_search/
 │   ├── embeddings/          # Provider interface, Bedrock/Spot/SageMaker adapters, factory
 │   ├── evaluation/          # Relevance evaluation suite (EvalQuery, metrics, CLI)
+│   ├── ingestion/           # Pluggable connectors (CSV, SQL, JSON, XML, API, MongoDB) + factory
 │   ├── pipeline/            # EmbeddingPipeline (provider → vector store → S3)
+│   ├── preprocessing/       # TextCleaner, TextChunker, PreprocessingPipeline
 │   ├── runtime/             # FastAPI search service, CLI tooling
 │   └── vectorstores/        # NumpyVectorStore (L2, cosine, inner-product)
+├── scripts/
+│   ├── generate_csv_index.py   # Build NumpyVectorStore from CSV via Spot embeddings
+│   └── generate_pg_index.py    # Build NumpyVectorStore from PostgreSQL via Spot embeddings
 ├── tests/
 │   ├── embeddings/          # Unit tests for all embedding providers
 │   ├── evaluation/          # Relevance evaluation tests
+│   ├── ingestion/           # Connector tests (CSV, SQL, JSON, XML, API, MongoDB)
 │   ├── load/                # Locust load test harness
 │   ├── pipeline/            # Embedding pipeline tests
+│   ├── preprocessing/       # TextCleaner, TextChunker, PreprocessingPipeline tests
 │   ├── runtime/             # Search API and CLI tests
 │   └── vectorstores/        # Vector store tests
+├── test_bedrock_json_server.sh  # Validation runner: Bedrock + JSON index
+├── test_bedrock_pg_server.sh    # Validation runner: Bedrock + PostgreSQL index
+└── test_spot_csv_server.sh      # Validation runner: Spot + CSV index
 ├── docs/
 │   ├── cost_optimisation.md # Cost sizing and tuning guidance
 │   └── process_flows/       # End-to-end process diagrams (01–06)
@@ -150,6 +164,8 @@ cd frontend && npm install && npm run dev
 │   ├── project_status.md
 │   ├── container_pipeline.md
 │   ├── developer-journal.md
+│   ├── functional_process_flow.md  # Mermaid diagram of full ingestion→search pipeline
+│   ├── guides/              # Tier deployment, data & testing guides
 │   ├── handoff/             # Deployment playbook & Terraform variable reference
 │   └── runbooks/            # Operational runbooks (runtime deployment, rollback)
 ├── infrastructure/          # Terraform modules and dev environment

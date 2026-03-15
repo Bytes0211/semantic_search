@@ -78,6 +78,7 @@ A single Docker image is used for the search application, reused across both run
 - **JSON / JSONL** — loads array or newline-delimited exports, applies optional jq-style filters, and converts objects into canonical records.
 - **XML** — selects repeating nodes via XPath, extracts child elements or attributes for text/metadata, and handles namespace-aware documents.
 - **REST API** — paginates through cursor- or offset-based endpoints with configurable headers, parameters, and retry logic.
+- **MongoDB** — connects via PyMongo, queries with configurable filter and projection, and streams cursor results as canonical records.
 
 ### Indexing Details
 - Default scheduled batch processing; streaming (Kinesis) available via `var.ingestion_mode`
@@ -216,11 +217,25 @@ A single Docker image is used for the search application, reused across both run
 1. FastAPI serves built `dist/` via `StaticFiles` mount — single container, no extra infra
 2. `dist/` deployed to S3 + CloudFront — CDN delivery, decoupled from API lifecycle
 
+### Branch: feature/data-abstraction — Data Abstraction & Preprocessing
+- ✅ Implemented 6 pluggable connectors in `semantic_search/ingestion/`: CSV, SQL (SQLAlchemy), JSON/JSONL, XML (XPath), REST API (pagination + retry), and MongoDB (PyMongo cursor) — all emit canonical `Record(record_id, text, metadata, source)`.
+- ✅ Added `semantic_search/preprocessing/` package: `TextCleaner` (HTML strip via regex, NFKC Unicode, whitespace collapse, optional lowercase), `TextChunker` (word-boundary char split, configurable `chunk_size`/`overlap`, `chunk("") → []`), and `PreprocessingPipeline` (opt-in cleaner + chunker; chunked records get `{id}#chunk-{n}` IDs; drops empty records with WARNING).
+- ✅ Added `data/sample.csv` (20 rows, 5 categories — `id, title, content, category, author`) for local development and test validation.
+- ✅ Added `scripts/generate_csv_index.py` and `scripts/generate_pg_index.py` — end-to-end index build scripts using `CsvConnector`/`SqlConnector`, Spot embedding provider (dim=384), and `NumpyVectorStore`.
+- ✅ Created `test_spot_csv_server.sh`, renamed `test_bedrock_json_server.sh`, and added `test_bedrock_pg_server.sh` — full validation runner scripts with index generation, server launch, endpoint verification, interactive query loop, and optional `--ui` flag.
+- ✅ Authored `developer/functional_process_flow.md` — accurate Mermaid diagram + prose stage notes for the full ingestion → preprocessing → embedding → vector store → query pipeline.
+- ✅ Created `github/ISSUES/data-abstraction.md` tracking all branch deliverables and known follow-ups.
+- ✅ Applied 9 PR review fixes: lazy `httpx` import with `TYPE_CHECKING` guard, exponential backoff in API connector, explicit auth validation guard, dead SQL branch removal, XML `_sequence` coercion to `List[str]`, `sqlalchemy` dependency dedup in `pyproject.toml`, `chunk("") → []` empty-string guard, Spot embedding dimension 768→384, and `.gitignore` + `git rm --cached` for `*_index/` directories.
+- ✅ Added `pymongo>=4.6,<5.0` to production dependencies; removed duplicate `sqlalchemy` from dev dependencies.
+- ✅ Test suite: 208 passing (up from 157) — 51 new preprocessing tests across `tests/preprocessing/`, 33 ingestion tests.
+
 ### Next Steps
+- Wire `PreprocessingPipeline` into `generate_csv_index.py` and `generate_pg_index.py` so records are cleaned and chunked before embedding.
 - Build a FAISS index and upload to `s3://semantic-search-dev-faiss-index/vector_store/current/` to enable `/readyz → 200` and activate `/v1/search`.
 - Update the ECS task definition to set `VECTOR_STORE_PATH` pointing at the S3 prefix after index upload.
 - Run the relevance evaluation suite (`semantic-search-eval`) and Locust load tests against the live ALB endpoint once an index is loaded.
 - Update `Dockerfile` to include a frontend build step (or separate build artifact) for single-container production mode.
+- Add pgvector and Qdrant vector store adapters (currently only `NumpyVectorStore` is implemented).
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
