@@ -6,8 +6,9 @@ to import from ``semantic_search`` directly without drilling into subpackages.
 """
 
 from .embeddings.base import EmbeddingInput, EmbeddingProvider, EmbeddingResult
-from .evaluation.schema import EvalQuery, EvalReport, EvalResult
+from .preprocessing import PreprocessingPipeline, TextChunker, TextCleaner
 from .evaluation.evaluator import RelevanceEvaluator
+from .evaluation.schema import EvalQuery, EvalReport, EvalResult
 from .runtime.api import (
     SearchRequest,
     SearchResponse,
@@ -23,6 +24,9 @@ from .vectorstores.faiss_store import (
 )
 
 __all__ = [
+    "PreprocessingPipeline",
+    "TextCleaner",
+    "TextChunker",
     "EmbeddingInput",
     "EmbeddingProvider",
     "EmbeddingResult",

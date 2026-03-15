@@ -72,6 +72,13 @@ A single Docker image is used for the search application, reused across both run
 ## Data Flow
 1. Ingest from source → 2. Preprocess & normalize → 3. Generate embeddings → 4. Store in vector DB → 5. Query → 6. Retrieve & rank (cosine similarity) → 7. Return results
 
+### Data Ingestion Connectors
+- **CSV** — streams one or more files, concatenates configured text columns, and records metadata fields for downstream filtering.
+- **SQL** — executes parameterised SELECT statements via SQLAlchemy, supporting server-side cursors for large result sets.
+- **JSON / JSONL** — loads array or newline-delimited exports, applies optional jq-style filters, and converts objects into canonical records.
+- **XML** — selects repeating nodes via XPath, extracts child elements or attributes for text/metadata, and handles namespace-aware documents.
+- **REST API** — paginates through cursor- or offset-based endpoints with configurable headers, parameters, and retry logic.
+
 ### Indexing Details
 - Default scheduled batch processing; streaming (Kinesis) available via `var.ingestion_mode`
 - Idempotent upserts ensure minimal downtime during re-indexing

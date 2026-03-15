@@ -10,6 +10,8 @@ dependencies = [
     "fastapi>=0.111.0,<1.0",
     "pydantic>=2.7,<3.0",
     "uvicorn[standard]>=0.30,<1.0",
+    "sqlalchemy>=2.0.48",
+    "pymongo>=4.6,<5.0",
 ]
 
 [project.scripts]
@@ -33,5 +35,8 @@ markers = [
 dev = [
     "pytest>=8.4.2",
     "httpx>=0.27.0,<1.0",
+    "psycopg2-binary>=2.9,<3.0",
+    "sqlalchemy>=2.0,<3.0",
     "locust>=2.29,<3.0",
+    "mongomock>=4.1",
 ]

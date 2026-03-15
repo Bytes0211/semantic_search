@@ -23,6 +23,10 @@ CORS_ORIGINS
     to ``"http://localhost:5173,http://localhost:4173"`` (Vite dev and
     preview ports).  Set to ``"*"`` to allow all origins (dev only) or to
     the CloudFront distribution URL in production.
+ENABLE_UI
+    Set to ``"true"`` (case-insensitive) to mount the pre-built React SPA from
+    ``frontend/dist/`` at ``/ui``.  Requires ``npm run build`` in ``frontend/``
+    to have been run first.  Defaults to ``"false"``.
 ANALYTICS_ENABLED
     Set to ``"true"`` (case-insensitive) to enable the Premium-tier query
     analytics panel in the React web UI.  Defaults to ``"false"``.
@@ -152,12 +156,38 @@ def build_app() -> Any:
             "/readyz will return 503 until app.state.runtime is set."
         )
 
-    return create_app(
+    app = create_app(
         runtime,
         cors_origins=cors_origins,
         analytics_enabled=analytics_enabled,
         search_top_k=search_top_k,
     )
+
+    enable_ui = os.environ.get("ENABLE_UI", "").lower() in ("true", "1", "yes")
+    if enable_ui:
+        import pathlib
+        from fastapi.staticfiles import StaticFiles as _StaticFiles
+        dist = pathlib.Path("frontend/dist")
+        if dist.is_dir():
+            # Vite builds with absolute /assets/ paths by default, so we must
+            # expose the assets directory at the root /assets route in addition
+            # to the SPA shell at /ui.
+            assets_dir = dist / "assets"
+            if assets_dir.is_dir():
+                app.mount(
+                    "/assets",
+                    _StaticFiles(directory=str(assets_dir)),
+                    name="ui-assets",
+                )
+            app.mount("/ui", _StaticFiles(directory=str(dist), html=True), name="ui")
+            LOGGER.info("Web UI mounted at /ui (frontend/dist)")
+        else:
+            LOGGER.warning(
+                "ENABLE_UI=true but frontend/dist/ was not found — UI not mounted. "
+                "Run 'npm run build' in frontend/ to generate the build artifacts."
+            )
+
+    return app
 
 
 # Module-level ``app`` so uvicorn can reference it as ``main:app``.

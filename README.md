@@ -33,11 +33,13 @@ Organizations store valuable information across databases, CRMs, spreadsheets, a
 ## Key Features
 
 - **Natural-language search** across CSV, SQL, JSON, and API data sources
+- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, and REST API adapters normalise records into a shared schema for the embedding pipeline (see `developer/pluggable_data_sources.md`)
 - **Pluggable embedding providers** — AWS Bedrock, Spot-hosted open-source models, SageMaker
 - **Multiple vector stores** — FAISS, Qdrant, or pgvector
 - **Flexible deployment** — ECS/Fargate or Lambda, toggled via Terraform configuration
 - **Filtering & ranking** — cosine similarity with optional cross-encoder re-ranking, support for date/category/tag filters
 - **FastAPI runtime & CLI tooling** — container-ready REST service with a shared command-line client for validation and smoke tests
+- **Validation UI** — self-contained single-page web interface served at `/ui` for issuing queries during local development and deployment validation
 - **React Web UI** — React 18 + TypeScript SPA (`frontend/`) with search bar, result cards, dynamic filter panel, pagination, and an optional Premium-tier analytics sidebar; served via S3 + CloudFront or a `StaticFiles` mount on the same container
 
 ## Architecture Overview
