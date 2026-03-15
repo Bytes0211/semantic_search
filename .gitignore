@@ -61,3 +61,6 @@ frontend/.env.local
 *.parquet
 data/
 models/
+
+# ----- Generated vector indexes -----
+*_index/
