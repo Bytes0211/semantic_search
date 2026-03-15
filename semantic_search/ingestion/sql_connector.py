@@ -48,12 +48,9 @@ class SqlConnector(DataSourceConnector):
 
         try:
             with engine.connect() as connection:
-                if self._batch_size > 0:
-                    result = connection.execution_options(
-                        stream_results=True, max_row_buffer=self._batch_size
-                    ).execute(text(self._query))
-                else:
-                    result = connection.execute(text(self._query))
+                result = connection.execution_options(
+                    stream_results=True, max_row_buffer=self._batch_size
+                ).execute(text(self._query))
 
                 with contextlib.closing(result):
                     yield from self._iter_rows(result)

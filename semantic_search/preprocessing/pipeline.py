@@ -88,6 +88,13 @@ class PreprocessingPipeline:
 
             if self._chunker is not None:
                 chunks = self._chunker.chunk(text)
+                if not chunks:
+                    LOGGER.warning(
+                        "PreprocessingPipeline: record_id=%r produced no chunks "
+                        "after chunking; dropping.",
+                        record.record_id,
+                    )
+                    continue
             else:
                 chunks = [text]
 

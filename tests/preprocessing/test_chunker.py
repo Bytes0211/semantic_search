@@ -45,9 +45,9 @@ class TestTextChunkerShortText:
         chunks = self.chunker.chunk(text)
         assert chunks == [text]
 
-    def test_empty_string_returns_single_empty_chunk(self) -> None:
+    def test_empty_string_returns_empty_list(self) -> None:
         chunks = self.chunker.chunk("")
-        assert chunks == [""]
+        assert chunks == []
 
     def test_single_word_shorter_than_chunk_size(self) -> None:
         chunks = self.chunker.chunk("word")

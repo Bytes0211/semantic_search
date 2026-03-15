@@ -61,18 +61,18 @@ class TextChunker:
             text: Input string to split.
 
         Returns:
-            A list of one or more non-empty string chunks.  Returns
-            ``[""]`` when *text* is empty.  Returns ``[text]`` when
+            A list of non-empty string chunks.  Returns ``[]`` when *text*
+            is empty or contains only whitespace.  Returns ``[text]`` when
             ``len(text) <= chunk_size``.
         """
-        if not text:
-            return [""]
+        if not text or not text.strip():
+            return []
         if len(text) <= self._chunk_size:
             return [text]
 
         words = text.split()
         if not words:
-            return [text]
+            return []
 
         chunks: List[str] = []
         start = 0  # index into words[]
@@ -112,4 +112,4 @@ class TextChunker:
                 # Always advance by at least one word to guarantee termination.
                 start = max(next_start, start + 1)
 
-        return chunks if chunks else [text]
+        return chunks if chunks else []

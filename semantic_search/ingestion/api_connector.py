@@ -1,9 +1,21 @@
+"""REST API data source connector for the semantic search ingestion pipeline.
+
+Extracts records from a paginated REST API and normalises them into the
+canonical :class:`~semantic_search.ingestion.base.Record` schema.
+
+Requires the ``httpx`` package.  It is imported lazily inside
+:meth:`ApiConnector.extract` so the rest of the ingestion package can be
+used without ``httpx`` installed — consistent with how ``pymongo`` is
+handled in :mod:`.mongodb_connector`.
+"""
+
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Iterator, Mapping, MutableMapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Iterator, Mapping, MutableMapping, Optional, Sequence
 
-import httpx
+if TYPE_CHECKING:
+    import httpx
 
 from .base import DataSourceConnector, DataSourceError, Record
 from .factory import register_connector
@@ -76,6 +88,14 @@ class ApiConnector(DataSourceConnector):
             )
 
     def extract(self) -> Iterator[Record]:
+        try:
+            import httpx
+        except ImportError as exc:
+            raise DataSourceError(
+                "httpx is required for the API connector. "
+                "Install it with: pip install 'httpx>=0.27.0,<1.0'"
+            ) from exc
+
         pagination_state: MutableMapping[str, Any] = {}
 
         if self._pagination == "offset":

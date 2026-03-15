@@ -258,7 +258,7 @@ def test_api_connector_cursor_pagination(monkeypatch) -> None:
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    monkeypatch.setattr(api_connector.httpx, "Client", DummyClient)
+    monkeypatch.setattr("httpx.Client", DummyClient)
 
     connector = get_connector(
         "api",
