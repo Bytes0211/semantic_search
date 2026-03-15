@@ -25,7 +25,6 @@ from .api import (
     create_app,
 )
 from .cli import main as cli_main
-from .ui import mount_ui
 
 __all__ = [
     "SearchRequest",
@@ -34,5 +33,4 @@ __all__ = [
     "SearchRuntime",
     "create_app",
     "cli_main",
-    "mount_ui",
 ]

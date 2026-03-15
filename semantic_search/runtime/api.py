@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
 
 try:
     from fastapi import Depends, FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
 except (
     ModuleNotFoundError
 ) as exc:  # pragma: no cover - ensures clear guidance when dependency missing.
@@ -264,7 +265,9 @@ class SearchRuntime:
 def create_app(
     runtime: Optional[SearchRuntime] = None,
     *,
-    enable_ui: bool = False,
+    cors_origins: list[str] | None = None,
+    analytics_enabled: bool = False,
+    search_top_k: int = 50,
 ) -> FastAPI:
     """Configure and return the FastAPI application serving semantic search.
 
@@ -273,9 +276,18 @@ def create_app(
             ``None`` the application starts without a runtime; the
             ``/readyz`` probe will return ``503`` until one is attached
             via ``app.state.runtime``.
-        enable_ui: When ``True``, registers the lightweight validation UI
-            at ``/ui``.  Defaults to ``False`` to keep the footprint
-            minimal in production deployments.
+        cors_origins: List of allowed CORS origins (e.g.
+            ``["http://localhost:5173"]`` for the Vite dev server, or
+            ``["*"]`` to allow all origins).  When ``None`` or empty, no
+            CORS middleware is added.
+        analytics_enabled: When ``True``, the ``GET /v1/config`` response
+            advertises that the query analytics panel is available.  Set
+            via the ``ANALYTICS_ENABLED`` environment variable for the
+            Premium tier.  Defaults to ``False``.
+        search_top_k: Maximum number of results the React UI will request
+            per query.  Returned via ``GET /v1/config`` so the frontend
+            never has a hard-coded ceiling.  Set via the ``SEARCH_TOP_K``
+            environment variable.  Defaults to ``50``.
     """
     app = FastAPI(
         title="Semantic Search Runtime",
@@ -283,6 +295,15 @@ def create_app(
         description="REST API for semantic search queries backed by vector embeddings.",
     )
     app.state.runtime = runtime
+
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization"],
+        )
 
     def get_runtime() -> SearchRuntime:
         runtime_instance = getattr(app.state, "runtime", None)
@@ -320,10 +341,21 @@ def create_app(
             LOGGER.exception("Search runtime encountered an error: %s", exc)
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    if enable_ui:
-        from semantic_search.runtime.ui import mount_ui  # local import avoids circular dependency
+    @app.get("/v1/config", summary="Frontend feature configuration.")
+    def config_endpoint() -> Dict[str, Any]:
+        """Return feature flags consumed by the React web UI.
 
-        mount_ui(app)
+        ``analytics_enabled`` controls the Premium-tier analytics panel.
+        ``search_top_k`` tells the frontend how many results to request per
+        query; the UI uses it instead of a hard-coded constant so the value
+        can be tuned per environment without a frontend rebuild.
+        Both values are set at startup via environment variables and do not
+        change during the lifetime of the process.
+        """
+        return {
+            "analytics_enabled": analytics_enabled,
+            "search_top_k": search_top_k,
+        }
 
     return app
 
@@ -334,4 +366,5 @@ __all__ = [
     "SearchResultItem",
     "SearchRuntime",
     "create_app",
+    "CORSMiddleware",
 ]

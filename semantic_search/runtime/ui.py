@@ -1,22 +1,14 @@
-"""Lightweight HTML validation UI served by the FastAPI runtime.
+"""Lightweight HTML validation UI — superseded by the React web UI in Phase 6.
 
-This module provides a minimal single-page web interface for issuing
-natural-language queries against the running ``/v1/search`` endpoint.  It is
-intended for local development and deployment validation, not as a production
-search frontend.
+.. deprecated::
+    This module is retained for reference only.  The ``enable_ui`` parameter
+    was removed from :func:`~semantic_search.runtime.api.create_app` in
+    Phase 6.  Use the React frontend in ``frontend/`` instead, which serves
+    both Standard and Premium tiers with tier-gated analytics.
 
-Usage::
-
-    from semantic_search.runtime.api import create_app
-
-    app = create_app(runtime, enable_ui=True)
-    # then: uvicorn main:app  ->  open http://localhost:8000/ui
-
-Or mount programmatically onto any existing :class:`fastapi.FastAPI` instance::
-
-    from semantic_search.runtime.ui import mount_ui
-
-    mount_ui(app, path="/ui")
+    ``mount_ui`` may be invoked manually on any FastAPI app instance if a
+    quick fallback HTML interface is needed, but it is not recommended for
+    production use.
 """
 
 from __future__ import annotations

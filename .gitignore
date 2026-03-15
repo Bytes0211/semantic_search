@@ -49,6 +49,11 @@ tfplan*
 .env.*
 !.env.example
 
+# ----- Frontend -----
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
 # ----- Data & Models -----
 *.faiss
 *.pkl

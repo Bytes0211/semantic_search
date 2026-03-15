@@ -93,7 +93,7 @@ class BedrockEmbeddingProvider(EmbeddingProvider):
                 EmbeddingResult(
                     record_id=item.record_id,
                     vector=vector,
-                    metadata={"model": target_model},
+                    metadata={**item.metadata, "model": target_model},
                 )
             )
 

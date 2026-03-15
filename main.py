@@ -18,9 +18,18 @@ VECTOR_STORE_PATH
     directory (``vectors.npy`` + ``metadata.json``).  When absent the server
     starts without a runtime; ``/readyz`` returns 503 until a runtime is
     injected via ``app.state.runtime``.
-ENABLE_UI
-    Set to ``"true"`` (case-insensitive) to mount the lightweight validation
-    UI at ``/ui``.  Disabled by default.
+CORS_ORIGINS
+    Comma-separated list of allowed CORS origins for the web UI.  Defaults
+    to ``"http://localhost:5173,http://localhost:4173"`` (Vite dev and
+    preview ports).  Set to ``"*"`` to allow all origins (dev only) or to
+    the CloudFront distribution URL in production.
+ANALYTICS_ENABLED
+    Set to ``"true"`` (case-insensitive) to enable the Premium-tier query
+    analytics panel in the React web UI.  Defaults to ``"false"``.
+SEARCH_TOP_K
+    Maximum number of results the React UI requests per query.  Returned
+    via ``GET /v1/config`` so the frontend never has a hard-coded ceiling.
+    Must be an integer between 1 and 200.  Defaults to ``50``.
 HOST
     Bind address for uvicorn.  Defaults to ``"0.0.0.0"``.
 PORT
@@ -37,10 +46,10 @@ Local demo (no real vector store needed)::
     # -> GET /healthz returns {"status": "ok"}
     # -> GET /readyz  returns 503 (no runtime configured)
 
-Local validation with a saved index and the built-in UI::
+Local validation with a saved index (Premium analytics enabled)::
 
-    VECTOR_STORE_PATH=./my_index ENABLE_UI=true uv run python main.py
-    # -> open http://localhost:8000/ui
+    VECTOR_STORE_PATH=./my_index ANALYTICS_ENABLED=true uv run python main.py
+    # -> React UI at http://localhost:5173 (run `npm run dev` in frontend/)
 """
 
 from __future__ import annotations
@@ -109,10 +118,23 @@ def build_app() -> Any:
     """
     from semantic_search.runtime.api import create_app
 
-    enable_ui = os.environ.get("ENABLE_UI", "").lower() in ("true", "1", "yes")
     vector_store_path = os.environ.get("VECTOR_STORE_PATH", "")
     backend = os.environ.get("EMBEDDING_BACKEND", "spot")
     provider_config_raw = os.environ.get("PROVIDER_CONFIG_JSON", "{}")
+    cors_origins_raw = os.environ.get(
+        "CORS_ORIGINS", "http://localhost:5173,http://localhost:4173"
+    )
+    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+    analytics_enabled = os.environ.get("ANALYTICS_ENABLED", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    try:
+        search_top_k = max(1, min(200, int(os.environ.get("SEARCH_TOP_K", "50"))))
+    except ValueError:
+        LOGGER.warning("SEARCH_TOP_K is not a valid integer — using default of 50.")
+        search_top_k = 50
 
     runtime = None
     if vector_store_path:
@@ -130,7 +152,12 @@ def build_app() -> Any:
             "/readyz will return 503 until app.state.runtime is set."
         )
 
-    return create_app(runtime, enable_ui=enable_ui)
+    return create_app(
+        runtime,
+        cors_origins=cors_origins,
+        analytics_enabled=analytics_enabled,
+        search_top_k=search_top_k,
+    )
 
 
 # Module-level ``app`` so uvicorn can reference it as ``main:app``.

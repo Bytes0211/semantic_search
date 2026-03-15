@@ -38,7 +38,7 @@ Organizations store valuable information across databases, CRMs, spreadsheets, a
 - **Flexible deployment** — ECS/Fargate or Lambda, toggled via Terraform configuration
 - **Filtering & ranking** — cosine similarity with optional cross-encoder re-ranking, support for date/category/tag filters
 - **FastAPI runtime & CLI tooling** — container-ready REST service with a shared command-line client for validation and smoke tests
-- **Validation UI** — self-contained single-page web interface served at `/ui` for issuing queries during local development and deployment validation
+- **React Web UI** — React 18 + TypeScript SPA (`frontend/`) with search bar, result cards, dynamic filter panel, pagination, and an optional Premium-tier analytics sidebar; served via S3 + CloudFront or a `StaticFiles` mount on the same container
 
 ## Architecture Overview
 
@@ -60,6 +60,7 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 4 — Search Runtime & Interfaces:** Complete. FastAPI REST API, CLI, and lightweight validation UI (`/ui`) delivered; full Terraform modules for Fargate and Lambda runtimes, observability module (dashboards/alarms/log widgets), example tfvars, and deployment runbook in place; 67 tests passing. Environment `terraform apply` and smoke-test validation pending.
 - **Phase 5 — Quality & Launch Readiness:** Complete. Relevance evaluation suite (`semantic-search-eval` CLI, 5 IR metrics, 54 new tests); Locust load test harness with acceptance criteria; cost optimisation guide; client deployment playbook and Terraform variable reference; 121 tests passing.
 - **Deployment — AWS Fargate (dev):** Complete. 53 resources provisioned via `terraform apply`; container image (~85 MB) built and pushed to ECR via CodeBuild; `GET /healthz → 200`; git tag `runtime-v0.1.0` created. `/readyz → 503` until a FAISS index is uploaded to S3.
+- **Phase 6 — Web UI:** Complete. React 18 + TypeScript SPA in `frontend/` with SearchBar, ResultCard, FilterPanel, Pagination, AnalyticsPanel, and hooks (useSearch, useConfig, useAnalytics, useDebounce). Tier-gated analytics panel via `GET /v1/config`. 15 component tests (Vitest + RTL). Production build in `frontend/dist/`.
 
 ## Live Environment (dev)
 
@@ -103,8 +104,12 @@ uv run pytest
 # Start the server (no vector store required — /readyz returns 503 until an index is loaded)
 uv run python main.py
 
-# Start with a saved index and the validation UI at http://localhost:8000/ui
-VECTOR_STORE_PATH=./my_index ENABLE_UI=true uv run python main.py
+# Start with a saved index
+VECTOR_STORE_PATH=./my_index uv run python main.py
+
+# Start the React web UI dev server (proxies /v1/* to localhost:8000)
+cd frontend && npm install && npm run dev
+# → http://localhost:5173
 ```
 
 ## Project Structure
@@ -113,6 +118,15 @@ VECTOR_STORE_PATH=./my_index ENABLE_UI=true uv run python main.py
 .
 ├── main.py                  # Application entry point
 ├── pyproject.toml           # Project metadata and dependencies
+├── frontend/                # React 18 + TypeScript web UI
+│   ├── src/
+│   │   ├── components/      # SearchBar, ResultCard, FilterPanel, Pagination, AnalyticsPanel
+│   │   ├── hooks/           # useSearch, useConfig, useAnalytics, useDebounce
+│   │   ├── types/           # TypeScript types mirroring FastAPI Pydantic models
+│   │   └── App.tsx
+│   ├── dist/                # Production build output
+│   ├── vite.config.ts       # /v1 proxy to FastAPI, Tailwind v4 plugin
+│   └── package.json
 ├── semantic_search/
 │   ├── embeddings/          # Provider interface, Bedrock/Spot/SageMaker adapters, factory
 │   ├── evaluation/          # Relevance evaluation suite (EvalQuery, metrics, CLI)
@@ -127,7 +141,6 @@ VECTOR_STORE_PATH=./my_index ENABLE_UI=true uv run python main.py
 │   ├── runtime/             # Search API and CLI tests
 │   └── vectorstores/        # Vector store tests
 ├── docs/
-│   ├── PRD-semantic-search.md
 │   ├── cost_optimisation.md # Cost sizing and tuning guidance
 │   └── process_flows/       # End-to-end process diagrams (01–06)
 ├── developer/
@@ -163,6 +176,7 @@ Infrastructure is managed through Terraform variables:
 - [Cost Optimisation Guide](docs/cost_optimisation.md)
 - [Deployment Playbook](developer/handoff/deployment_playbook.md)
 - [Terraform Variable Reference](developer/handoff/terraform_variable_reference.md)
+- [Web UI (frontend/)](frontend/README.md)
 - [Agent Guidelines](AGENTS.md)
 
 ## License

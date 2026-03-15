@@ -192,41 +192,28 @@ A single Docker image is used for the search application, reused across both run
 - ECS cluster / service: `<project>-dev-search-cluster` / `<project>-dev-search-service`
 - FAISS index bucket: `s3://<project>-dev-faiss-index/vector_store/current/`
 
-### Phase 6 — Web UI (Planned)
-**Status:** Not started — pending Phase 5 sign-off.
+### Phase 6 — Web UI — Complete
+- ✅ Scaffolded `frontend/` with Vite + React 18 + TypeScript + Tailwind CSS v4 + TanStack Query.
+- ✅ Built all UI components: `SearchBar`, `ResultCard` (with score badge and metadata tags), `FilterPanel` (dynamic field discovery from result metadata), `Pagination` (client-side over full result set), `AnalyticsPanel` (Premium-tier session analytics sidebar), `ScoreBadge`.
+- ✅ Implemented hooks: `useSearch` (TanStack Query wrapper over `POST /v1/search`), `useConfig` (fetches `GET /v1/config` once at startup for tier gating), `useAnalytics` (client-side session history, average latency, top-term frequency), `useDebounce` (350 ms input debounce).
+- ✅ Wired `App.tsx` — URL-synced query state (`?q=`), debounced search, client-side pagination, dynamic filter field discovery from result metadata, tier-gated analytics panel.
+- ✅ Added `GET /v1/config` endpoint to `api.py` returning `{"analytics_enabled": <bool>}`; wired `ANALYTICS_ENABLED` and `CORS_ORIGINS` env vars in `main.py`.
+- ✅ Deprecated `semantic_search/runtime/ui.py` (HTML validation UI superseded by React SPA; `mount_ui` retained for emergency fallback).
+- ✅ Vite dev server proxies `/v1/*` to FastAPI at `localhost:8000`; production build outputs to `frontend/dist/` for S3 + CloudFront or `StaticFiles` mount.
+- ✅ 15 component tests (Vitest + React Testing Library) covering `SearchBar`, `ResultCard`, and `AnalyticsPanel`.
+- ✅ Authored `frontend/README.md` — local dev setup, environment variables, tier behaviour table, production deployment instructions.
 
-**Chosen stack:**
-- **React 18 + TypeScript** — component model maps to search UI primitives (SearchBar, ResultCard, FilterPanel, Pagination); TypeScript enforced for client deliverable quality
-- **Vite** — build tooling; zero-config `/v1` proxy to FastAPI for local dev; outputs static assets for production deployment
-- **Tailwind CSS v4** — utility-first styling co-located with components; replaces SASS (modern CSS + component libraries reduce SASS value)
-- **TanStack Query** — async search state, loading/error/stale handling against `/v1/search`
-- **Shadcn/ui** — accessible, unstyled component primitives built on Radix UI; Tailwind-native; consumer owns the code (no external CSS lock-in)
-- **FastAPI** — backend unchanged; add CORS middleware; optionally mount `dist/` via `StaticFiles` for single-deployment mode
+**Stack delivered:** React 18 + TypeScript · Vite · Tailwind CSS v4 · TanStack Query v5
 
-**Why React over HTMX:** `/v1/search` returns JSON (not HTML fragments); existing `/ui` is already client-rendered; frontend should be independently deployable (S3 + CloudFront option). HTMX is better for internal server-rendered tooling; React is appropriate for a deliverable product.
-
-**Deployment options (both supported by this stack):**
+**Deployment options:**
 1. FastAPI serves built `dist/` via `StaticFiles` mount — single container, no extra infra
-2. `dist/` deployed to S3 + CloudFront — CDN delivery, separate from API lifecycle
-
-**Planned directory layout:**
-```
-frontend/
-├── src/
-│   ├── components/      # SearchBar, ResultCard, FilterPanel, Pagination
-│   ├── hooks/           # useSearch (TanStack Query wrapper over /v1/search)
-│   └── App.tsx
-├── vite.config.ts       # proxy /v1 → FastAPI
-└── package.json
-```
-
-**Prerequisite:** Live index loaded (`/readyz → 200`) so search results are meaningful during UI development.
+2. `dist/` deployed to S3 + CloudFront — CDN delivery, decoupled from API lifecycle
 
 ### Next Steps
 - Build a FAISS index and upload to `s3://semantic-search-dev-faiss-index/vector_store/current/` to enable `/readyz → 200` and activate `/v1/search`.
 - Update the ECS task definition to set `VECTOR_STORE_PATH` pointing at the S3 prefix after index upload.
 - Run the relevance evaluation suite (`semantic-search-eval`) and Locust load tests against the live ALB endpoint once an index is loaded.
-- Generate test data (synthetic vectors or themed corpora) to exercise search functionality before client delivery.
+- Update `Dockerfile` to include a frontend build step (or separate build artifact) for single-container production mode.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
