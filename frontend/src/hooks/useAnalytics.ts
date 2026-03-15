@@ -3,7 +3,11 @@ import type { SearchResponse } from "../types/api";
 
 /** A single recorded search event. */
 export interface SearchRecord {
-  /** Stable unique identifier generated at record time via crypto.randomUUID(). */
+  /**
+   * Stable unique identifier generated at record time.
+   * Uses crypto.randomUUID() in secure contexts (HTTPS/localhost); falls back
+   * to a timestamp+random string for plain-HTTP environments.
+   */
   id: string;
   query: string;
   timestamp: number;
@@ -58,7 +62,7 @@ export function useAnalytics() {
 
   const record = useCallback((response: SearchResponse) => {
     const entry: SearchRecord = {
-      id: crypto.randomUUID(),
+      id: crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
       query: response.query,
       timestamp: Date.now(),
       elapsed_ms: response.elapsed_ms,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConfig } from "./hooks/useConfig";
 import { useSearch } from "./hooks/useSearch";
 import { useAnalytics } from "./hooks/useAnalytics";
@@ -38,13 +38,21 @@ export default function App() {
         }
       : null;
 
-  const { data: searchData, isFetching, error } = useSearch(searchParams);
+  const { data: searchData, isFetching, error, dataUpdatedAt } = useSearch(searchParams);
   const { analytics, record } = useAnalytics();
 
-  // Record analytics whenever new results arrive
+  // Record analytics on each distinct cache write, not just on identity change.
+  // Keying on dataUpdatedAt (rather than searchData) ensures cache hits that
+  // return the same object reference still appear in history when the user
+  // re-submits an identical query within the staleTime window.
+  // The useRef guard prevents double-recording in React StrictMode.
+  const lastRecordedAt = useRef(0);
   useEffect(() => {
-    if (searchData) record(searchData);
-  }, [searchData, record]);
+    if (searchData && dataUpdatedAt > 0 && dataUpdatedAt !== lastRecordedAt.current) {
+      lastRecordedAt.current = dataUpdatedAt;
+      record(searchData);
+    }
+  }, [dataUpdatedAt, record, searchData]);
 
   // Reset to page 1 whenever the query or filters change
   useEffect(() => {
@@ -72,9 +80,10 @@ export default function App() {
   const pageResults = allResults.slice(pageStart, pageStart + PAGE_SIZE);
 
   // Discover filterable field names from current result metadata
-  const availableFields = [
-    ...new Set(allResults.flatMap((r) => Object.keys(r.metadata))),
-  ];
+  const availableFields = useMemo(
+    () => [...new Set(allResults.flatMap((r) => Object.keys(r.metadata)))],
+    [allResults],
+  );
 
   const handleQueryChange = useCallback((value: string) => {
     setQuery(value);
