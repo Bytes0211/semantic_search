@@ -3,7 +3,9 @@ interface ScoreBadgeProps {
 }
 
 function getScoreStyle(score: number): { label: string; className: string } {
-  // Lower cosine distance = stronger semantic match
+  // The backend returns cosine DISTANCE (1 − cosine_similarity), so lower = better.
+  // score ≈ 0 → near-identical vectors; score → 1 → unrelated.
+  // See NumpyVectorStore._METRIC_FUNCTIONS["cosine"] in faiss_store.py.
   if (score <= 0.3) {
     return { label: "Strong match", className: "bg-emerald-100 text-emerald-700" };
   }
@@ -15,7 +17,13 @@ function getScoreStyle(score: number): { label: string; className: string } {
 
 /**
  * Displays a cosine distance score as a colour-coded badge.
- * Green ≤ 0.3 (strong), amber 0.3–0.6 (moderate), grey > 0.6 (weak).
+ *
+ * NOTE: The backend returns cosine DISTANCE (1 − cosine_similarity), not
+ * cosine similarity. Thresholds are therefore ascending — lower scores
+ * indicate stronger matches:
+ *   ≤ 0.3  → Strong match  (green)
+ *   ≤ 0.6  → Moderate match (amber)
+ *   > 0.6  → Weak match    (grey)
  */
 export default function ScoreBadge({ score }: ScoreBadgeProps) {
   const { label, className } = getScoreStyle(score);

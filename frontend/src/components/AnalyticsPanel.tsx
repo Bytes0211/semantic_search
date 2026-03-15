@@ -77,9 +77,9 @@ export default function AnalyticsPanel({ analytics }: AnalyticsPanelProps) {
             Recent
           </h3>
           <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {history.slice(0, 10).map((entry, idx) => (
+            {history.slice(0, 10).map((entry) => (
               <li
-                key={idx}
+                key={entry.id}
                 className="flex items-center justify-between gap-2"
               >
                 <span className="text-xs text-slate-700 truncate flex-1">

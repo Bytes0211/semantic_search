@@ -11,8 +11,6 @@ import AnalyticsPanel from "./components/AnalyticsPanel";
 import type { SearchFilters, SearchResultItem } from "./types/api";
 
 const PAGE_SIZE = 10;
-/** Number of results to request from the API; paginated client-side. */
-const REQUEST_TOP_K = 50;
 
 function getInitialQuery(): string {
   return new URLSearchParams(window.location.search).get("q") ?? "";
@@ -27,13 +25,15 @@ export default function App() {
 
   const { data: config } = useConfig();
   const analyticsEnabled = config?.analytics_enabled ?? false;
+  // Falls back to 50 until /v1/config resolves; matches the server default.
+  const requestTopK = config?.search_top_k ?? 50;
 
   const hasFilters = Object.keys(filters).length > 0;
   const searchParams =
     debouncedQuery.trim().length > 0
       ? {
           query: debouncedQuery,
-          top_k: REQUEST_TOP_K,
+          top_k: requestTopK,
           filters: hasFilters ? filters : undefined,
         }
       : null;

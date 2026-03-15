@@ -21,6 +21,8 @@ export interface SearchResponse {
 /** Response body from GET /v1/config. */
 export interface ConfigResponse {
   analytics_enabled: boolean;
+  /** Maximum number of results to request per query. Defaults to 50. */
+  search_top_k: number;
 }
 
 /**

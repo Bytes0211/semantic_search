@@ -12,12 +12,14 @@ const emptyAnalytics: Analytics = {
 const filledAnalytics: Analytics = {
   history: [
     {
+      id: "test-id-1",
       query: "machine learning models",
       timestamp: 1_700_000_000_000,
       elapsed_ms: 45,
       result_count: 10,
     },
     {
+      id: "test-id-2",
       query: "vector database embeddings",
       timestamp: 1_700_000_001_000,
       elapsed_ms: 31,

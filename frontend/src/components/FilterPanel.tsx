@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type { SearchFilters } from "../types/api";
 
 interface FilterPanelProps {
@@ -16,6 +16,7 @@ export default function FilterPanel({
   availableFields,
   onFiltersChange,
 }: FilterPanelProps) {
+  const [inputVal, setInputVal] = useState("");
   const activeFilters = Object.entries(filters);
 
   function removeFilter(key: string) {
@@ -26,14 +27,14 @@ export default function FilterPanel({
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
-    const raw = e.currentTarget.value.trim();
+    const raw = inputVal.trim();
     const colonIdx = raw.indexOf(":");
     if (colonIdx === -1) return;
     const key = raw.slice(0, colonIdx).trim();
     const value = raw.slice(colonIdx + 1).trim();
     if (!key || !value) return;
     onFiltersChange({ ...filters, [key]: value });
-    e.currentTarget.value = "";
+    setInputVal("");
   }
 
   if (availableFields.length === 0 && activeFilters.length === 0) return null;
@@ -68,6 +69,8 @@ export default function FilterPanel({
       {/* Inline filter input: type "field:value" and press Enter */}
       <input
         type="text"
+        value={inputVal}
+        onChange={(e) => setInputVal(e.target.value)}
         placeholder="field:value + Enter"
         onKeyDown={handleKeyDown}
         list="filter-field-suggestions"
