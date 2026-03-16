@@ -20,11 +20,38 @@ export interface SearchResponse {
   embedding_model: string | null;
 }
 
+/** A column definition from the display config. */
+export interface ColumnDef {
+  field: string;
+  label: string;
+}
+
+/** A detail section definition from the display config. */
+export interface DetailSectionDef {
+  field: string;
+  label: string;
+}
+
+/** Per-source display configuration returned by the API. */
+export interface DisplayDef {
+  title_field: string | null;
+  columns: ColumnDef[];
+  detail_sections: DetailSectionDef[];
+}
+
 /** Response body from GET /v1/config. */
 export interface ConfigResponse {
+  /** Client subscription tier: "basic" | "standard" | "premium". */
+  tier: string;
+  /** Whether drill-down detail is enabled for this tier. */
+  detail_enabled: boolean;
+  /** Whether metadata filters are enabled for this tier. */
+  filters_enabled: boolean;
   analytics_enabled: boolean;
   /** Maximum number of results to request per query. Defaults to 50. */
   search_top_k: number;
+  /** Per-source display configuration (keyed by source name). */
+  display?: Record<string, DisplayDef>;
 }
 
 /**

@@ -1,0 +1,34 @@
+# ── Source: articles ──────────────────────────────────────────────────────
+# Indexes articles from the semantic_search_test MongoDB database.
+
+connector:
+  type: mongodb
+  config:
+    uri: mongodb://localhost:27017
+    database: semantic_search_test
+    collection: articles
+
+id_field: article_id
+id_prefix: article
+text_fields:
+  - title
+  - body
+metadata_fields:
+  - title
+  - category
+  - author
+detail_fields:
+  - body
+
+display:
+  result_card:
+    title_field: title
+    columns:
+      - field: category
+        label: Category
+      - field: author
+        label: Author
+  record_detail:
+    sections:
+      - field: body
+        label: Article Body

@@ -1,0 +1,16 @@
+# ── Example: Basic Tier ───────────────────────────────────────────────────
+# Search only — no drill-down, no filters, no analytics.
+# Copy to config/app.yaml to activate.
+
+tier: basic
+
+embedding:
+  backend: spot
+  model: sentence-transformers/all-MiniLM-L6-v2
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  log_level: info
+  cors_origins: "*"
+  search_top_k: 10

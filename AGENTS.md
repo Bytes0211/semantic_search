@@ -239,6 +239,20 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Added `--show-detail` flag to CLI `_render_response`; detail fields print indented below metadata with `--- detail ---` separator.
 - ✅ 6 new tests: 2 runtime tests (`_detail` extraction + backward compat), 4 frontend tests (toggle visibility, expand, collapse).
 
+### Branch: feature/config_enhancements — Configuration Externalization
+- ✅ Created `semantic_search/config/` package with 5 modules: `app.py` (`AppConfig`, tier→flags, env var overrides), `models.py` (`MODEL_PRESETS`, `resolve_dimension`), `source.py` (`SourceConfig`, `load_source_configs`), `display.py` (`DisplayConfig`, `ColumnConfig`, `DetailSectionConfig`), `metadata.py` (shared `split_metadata`).
+- ✅ Created YAML config files: `config/app.yaml` (default Standard/Spot), 5 source configs under `config/sources/`, 4 example app profiles under `config/examples/`.
+- ✅ Consolidated `_split_metadata` — replaced four duplicate copies in generate scripts with `from semantic_search.config.metadata import split_metadata`.
+- ✅ Added `--config` and `--app-config` CLI flags to all 4 generate scripts (`generate_csv_index.py`, `generate_pg_index.py`, `generate_json_index.py`, `generate_mongo_index.py`). Precedence: CLI flag > source YAML > script default.
+- ✅ Created unified `scripts/generate_index.py` — config-driven multi-source index builder reading `config/app.yaml` + `config/sources/*.yaml`; supports `--source`, `--backend`, `--model`, `--dimension` overrides.
+- ✅ Updated `create_app()` in `api.py` to accept `app_config` and `display_configs`; `/v1/config` now returns `tier`, `detail_enabled`, `filters_enabled`, `analytics_enabled`, `search_top_k`, and per-source `display` map.
+- ✅ Updated `main.py` to load YAML config at startup (`CONFIG_DIR` env var, defaults to `./config`); full backward compat with env-var-only deployments.
+- ✅ Updated frontend: extended `ConfigResponse` in `types/api.ts`, `App.tsx` gates features by config flags, `ResultCard.tsx` uses display config for title/columns/detail labels.
+- ✅ Wrote 51 config tests across 5 test files in `tests/config/`.
+- ✅ Created `config/README.md` with full YAML schema reference, tier feature matrix, model presets, precedence rules, and examples.
+- ✅ Updated `developer/guides/data-and-testing-guide.md` with config-driven workflow, YAML reference, and unified builder documentation.
+- ✅ Test suite: 261 passing (up from 210) — 51 new config tests, 0 regressions.
+
 ### Next Steps
 - Wire `PreprocessingPipeline` into `generate_csv_index.py` and `generate_pg_index.py` so records are cleaned and chunked before embedding.
 - Build a FAISS index and upload to `s3://semantic-search-dev-faiss-index/vector_store/current/` to enable `/readyz → 200` and activate `/v1/search`.
@@ -246,7 +260,6 @@ A single Docker image is used for the search application, reused across both run
 - Run the relevance evaluation suite (`semantic-search-eval`) and Locust load tests against the live ALB endpoint once an index is loaded.
 - Update `Dockerfile` to include a frontend build step (or separate build artifact) for single-container production mode.
 - Add pgvector and Qdrant vector store adapters (currently only `NumpyVectorStore` is implemented).
-- Extract `_split_metadata()` from index scripts into a shared utility module.
 - Extend `_detail` support to remaining connectors (XML, API, MongoDB) as needed.
 
 ## Delivery Phases

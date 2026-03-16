@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from semantic_search.config.metadata import split_metadata
 from semantic_search.embeddings.base import EmbeddingInput
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
 
@@ -69,32 +70,6 @@ TABLE_CONFIGS: Dict[str, Dict] = {
         "id_prefix": "candidate",
     },
 }
-
-
-def _split_metadata(
-    flat_metadata: Dict[str, Any],
-    detail_field_names: Set[str],
-) -> Dict[str, Any]:
-    """Separate flat metadata into display fields and a nested ``_detail`` dict.
-
-    Args:
-        flat_metadata: All metadata fields returned by the connector.
-        detail_field_names: Field names that belong in the ``_detail`` block.
-
-    Returns:
-        A new metadata dict with top-level display fields and a ``_detail``
-        sub-dict containing the detail fields.
-    """
-    display: Dict[str, Any] = {}
-    detail: Dict[str, Any] = {}
-    for key, value in flat_metadata.items():
-        if key in detail_field_names:
-            detail[key] = value
-        else:
-            display[key] = value
-    if detail:
-        display["_detail"] = detail
-    return display
 
 
 def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
@@ -144,7 +119,7 @@ def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
             record_id=f"{prefix}-{r.record_id}",
             text=r.text,
             metadata={
-                **_split_metadata(dict(r.metadata), detail_field_set),
+                **split_metadata(dict(r.metadata), detail_field_set),
                 "source_table": table,
             },
         )
@@ -244,6 +219,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=None,
         help="Process a single table only. Omit to process all tables.",
     )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to a source YAML config file (e.g. config/sources/support_tickets.yaml)",
+    )
+    parser.add_argument(
+        "--app-config",
+        default=None,
+        help="Path to config directory containing app.yaml (e.g. ./config)",
+    )
     return parser.parse_args(argv)
 
 
@@ -257,9 +242,41 @@ def main(argv: Optional[List[str]] = None) -> int:
         Exit code (0 on success, 1 on error).
     """
     args = parse_args(argv)
+
+    # --- Optional YAML config loading --------------------------------------
+    if args.app_config:
+        from semantic_search.config.app import load_app_config
+
+        app_cfg = load_app_config(Path(args.app_config))
+        LOGGER.info("Loaded app config from: %s", args.app_config)
+        model = args.model if args.model != BEDROCK_MODEL else app_cfg.embedding.model
+        region = args.region if args.region != "us-east-1" else app_cfg.embedding.config.get("region", args.region)
+    else:
+        model = args.model
+        region = args.region
+
+    if args.config:
+        import yaml
+        from semantic_search.config.source import parse_source_config
+
+        with open(args.config) as fh:
+            raw = yaml.safe_load(fh)
+        src_cfg = parse_source_config(Path(args.config).stem, raw)
+        LOGGER.info("Loaded source config: %s", args.config)
+        # Override TABLE_CONFIGS with source YAML if the table matches
+        table_name = src_cfg.name
+        TABLE_CONFIGS[table_name] = {
+            "query": src_cfg.connector.config.get("query", ""),
+            "text_fields": src_cfg.text_fields,
+            "id_field": src_cfg.id_field or "id",
+            "metadata_fields": src_cfg.metadata_fields,
+            "detail_fields": src_cfg.detail_fields,
+            "id_prefix": src_cfg.id_prefix or table_name,
+        }
+
     tables = [args.table] if args.table else list(TABLE_CONFIGS.keys())
 
-    store = build_pg_bedrock_index(tables, region=args.region, model=args.model)
+    store = build_pg_bedrock_index(tables, region=region, model=model)
     store.save(args.output)
     LOGGER.info("Saved %d records to %r", len(store._vectors), args.output)
 

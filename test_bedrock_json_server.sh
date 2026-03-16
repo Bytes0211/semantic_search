@@ -54,6 +54,23 @@ pause() {
   sleep "$seconds"
 }
 
+kill_port_occupant() {
+  local port="${1:-8000}"
+  local pids
+  pids="$(lsof -ti :"$port" 2>/dev/null || true)"
+  if [[ -n "$pids" ]]; then
+    start_spinner "Stopping existing server on port $port"
+    echo "$pids" | xargs kill 2>/dev/null || true
+    sleep 2
+    pids="$(lsof -ti :"$port" 2>/dev/null || true)"
+    if [[ -n "$pids" ]]; then
+      echo "$pids" | xargs kill -9 2>/dev/null || true
+      sleep 0.5
+    fi
+    stop_spinner "Stopping existing server on port $port"
+  fi
+}
+
 banner() {
   cat <<'EOF'
 ╔══════════════════════════════════════════════════════════════════╗
@@ -194,6 +211,8 @@ launch_server() {
     echo "       Export e.g. PROVIDER_CONFIG_JSON='{\"region\":\"us-east-1\",\"model\":\"amazon.titan-embed-text-v1\"}'"
     exit 1
   fi
+
+  kill_port_occupant 8000
 
   if [[ "$ENABLE_UI_FLAG" == "true" ]]; then
     export ENABLE_UI=true

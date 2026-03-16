@@ -1,0 +1,30 @@
+# ── Source: sample_csv ────────────────────────────────────────────────────
+# Indexes rows from data/sample.csv (20-row demo dataset).
+
+connector:
+  type: csv
+  config:
+    path: ./data/sample.csv
+
+id_field: id
+text_fields:
+  - title
+  - content
+metadata_fields:
+  - category
+  - author
+detail_fields:
+  - content
+
+display:
+  result_card:
+    title_field: title
+    columns:
+      - field: category
+        label: Category
+      - field: author
+        label: Author
+  record_detail:
+    sections:
+      - field: content
+        label: Full Content

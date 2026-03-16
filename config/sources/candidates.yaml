@@ -1,0 +1,39 @@
+# ── Source: candidates ────────────────────────────────────────────────────
+# Indexes candidate profiles from the semantic_search_test PostgreSQL database.
+
+connector:
+  type: sql
+  config:
+    connection_string: postgresql+psycopg2:///semantic_search_test
+    query: >-
+      SELECT id, full_name, summary, skills, location, years_experience, availability
+      FROM candidates ORDER BY id
+
+id_field: id
+id_prefix: candidate
+text_fields:
+  - full_name
+  - summary
+  - skills
+metadata_fields:
+  - full_name
+  - location
+  - years_experience
+detail_fields:
+  - summary
+  - skills
+
+display:
+  result_card:
+    title_field: full_name
+    columns:
+      - field: location
+        label: Location
+      - field: years_experience
+        label: Experience (yrs)
+  record_detail:
+    sections:
+      - field: summary
+        label: Summary
+      - field: skills
+        label: Skills
