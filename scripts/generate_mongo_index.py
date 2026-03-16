@@ -276,7 +276,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         from semantic_search.config.source import parse_source_config
 
         with open(args.config) as fh:
-            raw = yaml.safe_load(fh)
+            try:
+                raw = yaml.safe_load(fh)
+            except yaml.YAMLError as exc:
+                LOGGER.critical("Failed to parse YAML config %s: %s", args.config, exc)
+                raise SystemExit(1) from exc
         src_cfg = parse_source_config(Path(args.config).stem, raw)
         LOGGER.info("Loaded source config: %s", args.config)
         coll_name = src_cfg.connector.config.get("collection", src_cfg.name)

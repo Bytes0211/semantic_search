@@ -200,27 +200,27 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--json",
-        default=DEFAULT_JSON,
+        default=None,
         help=f"Path or glob to JSON/JSONL file(s) (default: {DEFAULT_JSON!r})",
     )
     parser.add_argument(
         "--text-fields",
-        default=DEFAULT_TEXT_FIELDS,
+        default=None,
         help=f"Comma-separated text columns (default: {DEFAULT_TEXT_FIELDS!r})",
     )
     parser.add_argument(
         "--id-field",
-        default=DEFAULT_ID_FIELD,
+        default=None,
         help=f"Field used as record ID (default: {DEFAULT_ID_FIELD!r})",
     )
     parser.add_argument(
         "--metadata-fields",
-        default=DEFAULT_METADATA_FIELDS,
+        default=None,
         help=f"Comma-separated metadata fields (default: {DEFAULT_METADATA_FIELDS!r})",
     )
     parser.add_argument(
         "--detail-fields",
-        default=DEFAULT_DETAIL_FIELDS,
+        default=None,
         help=f"Comma-separated detail fields for drill-down display (default: {DEFAULT_DETAIL_FIELDS!r})",
     )
     parser.add_argument(
@@ -235,7 +235,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-name",
-        default=DEFAULT_MODEL,
+        default=None,
         help=f"Spot model identifier reported in metadata (default: {DEFAULT_MODEL!r})",
     )
     parser.add_argument(
@@ -276,7 +276,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         from semantic_search.config.source import parse_source_config
 
         with open(args.config) as fh:
-            raw = yaml.safe_load(fh)
+            try:
+                raw = yaml.safe_load(fh)
+            except yaml.YAMLError as exc:
+                LOGGER.critical("Failed to parse YAML config %s: %s", args.config, exc)
+                raise SystemExit(1) from exc
         src_cfg = parse_source_config(Path(args.config).stem, raw)
         LOGGER.info("Loaded source config: %s", args.config)
 
@@ -287,33 +291,32 @@ def main(argv: Optional[List[str]] = None) -> int:
         LOGGER.info("Loaded app config from: %s", args.app_config)
 
     # --- Resolve fields: CLI > source YAML > defaults ----------------------
-    json_path = args.json
-    if json_path == DEFAULT_JSON and src_cfg and src_cfg.connector.config.get("path"):
-        json_path = src_cfg.connector.config["path"]
-
-    text_fields = [f.strip() for f in args.text_fields.split(",") if f.strip()]
-    if args.text_fields == DEFAULT_TEXT_FIELDS and src_cfg and src_cfg.text_fields:
-        text_fields = src_cfg.text_fields
-
-    metadata_fields = [f.strip() for f in args.metadata_fields.split(",") if f.strip()]
-    if args.metadata_fields == DEFAULT_METADATA_FIELDS and src_cfg and src_cfg.metadata_fields:
-        metadata_fields = src_cfg.metadata_fields
-
-    detail_fields = (
-        [f.strip() for f in args.detail_fields.split(",") if f.strip()]
-        if args.detail_fields
-        else []
+    json_path = args.json or (
+        src_cfg.connector.config["path"]
+        if src_cfg and src_cfg.connector.config.get("path")
+        else DEFAULT_JSON
     )
-    if args.detail_fields == DEFAULT_DETAIL_FIELDS and src_cfg and src_cfg.detail_fields:
-        detail_fields = src_cfg.detail_fields
 
-    id_field = args.id_field
-    if id_field == DEFAULT_ID_FIELD and src_cfg and src_cfg.id_field:
-        id_field = src_cfg.id_field
+    text_fields_raw = args.text_fields or (
+        ",".join(src_cfg.text_fields) if src_cfg and src_cfg.text_fields else DEFAULT_TEXT_FIELDS
+    )
+    text_fields = [f.strip() for f in text_fields_raw.split(",") if f.strip()]
 
-    model_name = args.model_name
-    if model_name == DEFAULT_MODEL and app_cfg:
-        model_name = app_cfg.embedding.model
+    metadata_fields_raw = args.metadata_fields or (
+        ",".join(src_cfg.metadata_fields)
+        if src_cfg and src_cfg.metadata_fields
+        else DEFAULT_METADATA_FIELDS
+    )
+    metadata_fields = [f.strip() for f in metadata_fields_raw.split(",") if f.strip()]
+
+    detail_fields_raw = args.detail_fields or (
+        ",".join(src_cfg.detail_fields) if src_cfg and src_cfg.detail_fields else DEFAULT_DETAIL_FIELDS
+    )
+    detail_fields = [f.strip() for f in detail_fields_raw.split(",") if f.strip()]
+
+    id_field = args.id_field or (src_cfg.id_field if src_cfg and src_cfg.id_field else DEFAULT_ID_FIELD)
+
+    model_name = args.model_name or (app_cfg.embedding.model if app_cfg else DEFAULT_MODEL)
 
     dimension = args.dimension
     if dimension is None:

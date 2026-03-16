@@ -205,12 +205,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--region",
-        default="us-east-1",
+        default=None,
         help="AWS region for Bedrock (default: us-east-1)",
     )
     parser.add_argument(
         "--model",
-        default=BEDROCK_MODEL,
+        default=None,
         help=f"Bedrock model ID (default: {BEDROCK_MODEL!r})",
     )
     parser.add_argument(
@@ -249,18 +249,22 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         app_cfg = load_app_config(Path(args.app_config))
         LOGGER.info("Loaded app config from: %s", args.app_config)
-        model = args.model if args.model != BEDROCK_MODEL else app_cfg.embedding.model
-        region = args.region if args.region != "us-east-1" else app_cfg.embedding.config.get("region", args.region)
+        model = args.model if args.model is not None else app_cfg.embedding.model
+        region = args.region if args.region is not None else app_cfg.embedding.config.get("region", "us-east-1")
     else:
-        model = args.model
-        region = args.region
+        model = args.model or BEDROCK_MODEL
+        region = args.region or "us-east-1"
 
     if args.config:
         import yaml
         from semantic_search.config.source import parse_source_config
 
         with open(args.config) as fh:
-            raw = yaml.safe_load(fh)
+            try:
+                raw = yaml.safe_load(fh)
+            except yaml.YAMLError as exc:
+                LOGGER.critical("Failed to parse YAML config %s: %s", args.config, exc)
+                raise SystemExit(1) from exc
         src_cfg = parse_source_config(Path(args.config).stem, raw)
         LOGGER.info("Loaded source config: %s", args.config)
         # Override TABLE_CONFIGS with source YAML if the table matches
