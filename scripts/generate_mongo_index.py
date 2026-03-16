@@ -1,19 +1,24 @@
-"""Generate a Bedrock-embedded vector index from the semantic_search_test PostgreSQL database.
+"""Generate a Spot-embedded vector index from MongoDB collections.
 
-Extracts records from ``support_tickets`` and ``candidates`` tables, embeds
-the concatenated text fields via AWS Bedrock Titan embed-text-v1, and saves
-the resulting NumpyVectorStore for local server validation.
+Extracts records from the ``semantic_search_test`` database (``products`` and
+``articles`` collections), embeds the concatenated text fields using the local
+Spot provider, and saves the resulting NumpyVectorStore for local server
+validation.
+
+Prerequisites::
+
+    uv run python scripts/seed_mongodb.py   # populate the database first
 
 Usage::
 
-    # Both tables, us-east-1, output to ./pg_bedrock_index
-    uv run python scripts/generate_pg_index.py
+    # Both collections, default output to ./mongo_spot_index
+    uv run python scripts/generate_mongo_index.py
 
-    # Custom region / output directory
-    uv run python scripts/generate_pg_index.py --region us-west-2 --output ./my_pg_index
+    # Single collection
+    uv run python scripts/generate_mongo_index.py --collection products
 
-    # Single table only
-    uv run python scripts/generate_pg_index.py --table support_tickets
+    # Custom URI / output
+    uv run python scripts/generate_mongo_index.py --uri mongodb://localhost:27017 --output ./my_mongo_index
 """
 
 from __future__ import annotations
@@ -36,37 +41,30 @@ LOGGER = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-CONN = "postgresql+psycopg2:///semantic_search_test"
-DIM = 1536  # Bedrock Titan embed-text-v1 output dimension
-BEDROCK_MODEL = "amazon.titan-embed-text-v1"
-DEFAULT_OUTPUT = "./pg_bedrock_index"
+DEFAULT_URI = "mongodb://localhost:27017"
+DATABASE = "semantic_search_test"
+DEFAULT_OUTPUT = "./mongo_spot_index"
+DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_DIM = 384
 
 # ---------------------------------------------------------------------------
-# Table extraction configurations
+# Collection extraction configurations
 # ---------------------------------------------------------------------------
 
-TABLE_CONFIGS: Dict[str, Dict] = {
-    "support_tickets": {
-        "query": (
-            "SELECT id, title, body, category, priority, status "
-            "FROM support_tickets ORDER BY id"
-        ),
-        "text_fields": ["title", "body"],
+COLLECTION_CONFIGS: Dict[str, Dict[str, Any]] = {
+    "products": {
+        "text_fields": ["name", "description"],
         "id_field": "id",
-        "metadata_fields": ["title", "priority", "status"],
-        "detail_fields": ["body"],
-        "id_prefix": "ticket",
+        "metadata_fields": ["category", "brand"],
+        "detail_fields": ["description", "price"],
+        "id_prefix": "product",
     },
-    "candidates": {
-        "query": (
-            "SELECT id, full_name, summary, skills, location, years_experience, availability "
-            "FROM candidates ORDER BY id"
-        ),
-        "text_fields": ["full_name", "summary", "skills"],
-        "id_field": "id",
-        "metadata_fields": ["full_name", "location", "years_experience"],
-        "detail_fields": ["summary", "skills"],
-        "id_prefix": "candidate",
+    "articles": {
+        "text_fields": ["title", "body"],
+        "id_field": "article_id",
+        "metadata_fields": ["title", "category", "author"],
+        "detail_fields": ["body"],
+        "id_prefix": "article",
     },
 }
 
@@ -97,13 +95,18 @@ def _split_metadata(
     return display
 
 
-def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
-    """Extract records from a PostgreSQL table and convert to EmbeddingInputs.
+def extract_inputs(
+    uri: str,
+    collection: str,
+    config: Dict[str, Any],
+) -> List[EmbeddingInput]:
+    """Extract records from a MongoDB collection and convert to EmbeddingInputs.
 
     Args:
-        table: Table name, stored as ``source_table`` in each record's metadata.
-        config: Connector configuration dict containing query, text_fields,
-            id_field, metadata_fields, detail_fields, and id_prefix keys.
+        uri: MongoDB connection URI.
+        collection: Collection name within the ``semantic_search_test`` database.
+        config: Collection configuration dict containing text_fields, id_field,
+            metadata_fields, detail_fields, and id_prefix keys.
 
     Returns:
         List of EmbeddingInput objects ready for the embedding pipeline.
@@ -116,18 +119,18 @@ def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
     metadata_fields: List[str] = config.get("metadata_fields", [])
     detail_fields: List[str] = config.get("detail_fields", [])
     detail_field_set: Set[str] = set(detail_fields)
-    # Pass combined list to the connector so all fields are extracted.
     all_metadata_fields = metadata_fields + [
         f for f in detail_fields if f not in metadata_fields
     ]
 
-    LOGGER.info("Extracting from table: %s", table)
+    LOGGER.info("Extracting from collection: %s.%s", DATABASE, collection)
     try:
         connector = get_connector(
-            "sql",
+            "mongodb",
             {
-                "connection_string": CONN,
-                "query": config["query"],
+                "uri": uri,
+                "database": DATABASE,
+                "collection": collection,
                 "text_fields": config["text_fields"],
                 "id_field": config["id_field"],
                 "metadata_fields": all_metadata_fields,
@@ -135,7 +138,7 @@ def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
         )
         records = list(connector.extract())
     except DataSourceError as exc:
-        LOGGER.critical("Failed to extract from %s: %s", table, exc)
+        LOGGER.critical("Failed to extract from %s: %s", collection, exc)
         raise SystemExit(1) from exc
 
     prefix = config["id_prefix"]
@@ -145,57 +148,64 @@ def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
             text=r.text,
             metadata={
                 **_split_metadata(dict(r.metadata), detail_field_set),
-                "source_table": table,
+                "source_collection": collection,
             },
         )
         for r in records
     ]
-    LOGGER.info("  Extracted %d records from %s", len(inputs), table)
+    LOGGER.info("  Extracted %d records from %s", len(inputs), collection)
     return inputs
 
 
-def build_pg_bedrock_index(
-    tables: List[str],
-    region: str,
-    model: str = BEDROCK_MODEL,
+def build_mongo_spot_index(
+    uri: str,
+    collections: List[str],
+    model_name: str = DEFAULT_MODEL,
+    dimension: int = DEFAULT_DIM,
 ) -> NumpyVectorStore:
-    """Extract records from PostgreSQL tables and embed them via AWS Bedrock.
+    """Extract records from MongoDB collections and embed them via Spot.
 
     Args:
-        tables: List of table names to process (must be keys in TABLE_CONFIGS).
-        region: AWS region string for the Bedrock runtime (e.g. ``"us-east-1"``).
-        model: Bedrock model ID (default: Titan embed-text-v1).
+        uri: MongoDB connection URI.
+        collections: List of collection names to process (must be keys in
+            COLLECTION_CONFIGS).
+        model_name: Logical model identifier reported in result metadata.
+        dimension: Embedding vector dimensionality (must match the model).
 
     Returns:
-        A populated NumpyVectorStore with real semantic embedding vectors.
+        A populated NumpyVectorStore with embedded vectors.
 
     Raises:
         SystemExit: On provider initialisation failure, extraction error, or if
             no records are available to embed.
     """
-    import semantic_search.embeddings.bedrock  # noqa: F401 — registers 'bedrock' factory
+    import semantic_search.embeddings.spot  # noqa: F401 — registers 'spot' factory
     from semantic_search.embeddings.factory import get_provider
     from semantic_search.pipeline.embedding_pipeline import EmbeddingPipeline
 
-    LOGGER.info("Initialising Bedrock provider: region=%s  model=%s", region, model)
+    LOGGER.info(
+        "Initialising Spot provider: model=%s  dimension=%d", model_name, dimension
+    )
     try:
-        provider = get_provider("bedrock", {"region": region, "model": model})
+        provider = get_provider(
+            "spot", {"model_name": model_name, "dimension": dimension}
+        )
     except Exception as exc:  # noqa: BLE001
-        LOGGER.critical("Failed to initialise Bedrock provider: %s", exc)
+        LOGGER.critical("Failed to initialise Spot provider: %s", exc)
         raise SystemExit(1) from exc
 
     all_inputs: List[EmbeddingInput] = []
-    for table in tables:
-        all_inputs.extend(extract_inputs(table, TABLE_CONFIGS[table]))
+    for coll in collections:
+        all_inputs.extend(extract_inputs(uri, coll, COLLECTION_CONFIGS[coll]))
 
     if not all_inputs:
         LOGGER.critical("No records extracted — nothing to embed.")
         raise SystemExit(1)
 
-    store = NumpyVectorStore(dimension=DIM, metric="cosine")
-    pipeline = EmbeddingPipeline(provider, store, batch_size=10)
+    store = NumpyVectorStore(dimension=dimension, metric="cosine")
+    pipeline = EmbeddingPipeline(provider, store, batch_size=50)
 
-    LOGGER.info("Embedding %d records via Bedrock ...", len(all_inputs))
+    LOGGER.info("Embedding %d records via Spot ...", len(all_inputs))
     result = pipeline.run(all_inputs)
     LOGGER.info(
         "Embedding complete: %d succeeded, %d failed.",
@@ -219,9 +229,14 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         description=(
-            "Generate a Bedrock-embedded FAISS index from the "
-            "semantic_search_test PostgreSQL database."
+            "Generate a Spot-embedded FAISS index from MongoDB collections "
+            "in the semantic_search_test database."
         )
+    )
+    parser.add_argument(
+        "--uri",
+        default=DEFAULT_URI,
+        help=f"MongoDB connection URI (default: {DEFAULT_URI!r})",
     )
     parser.add_argument(
         "--output",
@@ -229,26 +244,27 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help=f"Local directory to write the index (default: {DEFAULT_OUTPUT!r})",
     )
     parser.add_argument(
-        "--region",
-        default="us-east-1",
-        help="AWS region for Bedrock (default: us-east-1)",
-    )
-    parser.add_argument(
-        "--model",
-        default=BEDROCK_MODEL,
-        help=f"Bedrock model ID (default: {BEDROCK_MODEL!r})",
-    )
-    parser.add_argument(
-        "--table",
-        choices=list(TABLE_CONFIGS.keys()),
+        "--collection",
+        choices=list(COLLECTION_CONFIGS.keys()),
         default=None,
-        help="Process a single table only. Omit to process all tables.",
+        help="Process a single collection only. Omit to process all collections.",
+    )
+    parser.add_argument(
+        "--model-name",
+        default=DEFAULT_MODEL,
+        help=f"Spot model identifier reported in metadata (default: {DEFAULT_MODEL!r})",
+    )
+    parser.add_argument(
+        "--dimension",
+        type=int,
+        default=DEFAULT_DIM,
+        help=f"Embedding vector dimensionality (default: {DEFAULT_DIM})",
     )
     return parser.parse_args(argv)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    """Entry point for the PostgreSQL Bedrock index generator.
+    """Entry point for the MongoDB Spot index generator.
 
     Args:
         argv: Argument list forwarded to :func:`parse_args`.
@@ -257,9 +273,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         Exit code (0 on success, 1 on error).
     """
     args = parse_args(argv)
-    tables = [args.table] if args.table else list(TABLE_CONFIGS.keys())
+    collections = (
+        [args.collection] if args.collection else list(COLLECTION_CONFIGS.keys())
+    )
 
-    store = build_pg_bedrock_index(tables, region=args.region, model=args.model)
+    store = build_mongo_spot_index(
+        uri=args.uri,
+        collections=collections,
+        model_name=args.model_name,
+        dimension=args.dimension,
+    )
     store.save(args.output)
     LOGGER.info("Saved %d records to %r", len(store._vectors), args.output)
 

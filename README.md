@@ -1,4 +1,4 @@
-# Semantic Search for Internal Databases
+# Semantic Search
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)

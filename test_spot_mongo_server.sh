@@ -2,28 +2,26 @@
 set -euo pipefail
 
 # Spot uses a local hash-based embedding stub — no AWS credentials required.
-# PROVIDER_CONFIG_JSON only needs the dimension to match the index.
 if [[ -z "${PROVIDER_CONFIG_JSON:-}" ]]; then
   export PROVIDER_CONFIG_JSON='{"dimension": 384}'
 fi
 
 ###############################################################################
-# test_spot_csv_server.sh
+# test_spot_mongo_server.sh
 #
-# Builds a Spot-embedded vector index from a CSV file and validates the
-# local search server against it.  No AWS credentials are required.
+# Seeds a local MongoDB instance, builds a Spot-embedded vector index from
+# the products and articles collections, and validates the local search
+# server against it.  No AWS credentials are required.
 #
 # NOTE: The Spot provider in this codebase is a deterministic hash-based
 # stub.  Search scores will not reflect true semantic similarity until a
-# real SentenceTransformers endpoint is wired in.  Use test_bedrock_pg_server.sh
-# or test_bedrock_json_server.sh for semantically meaningful results.
+# real SentenceTransformers endpoint is wired in.
 #
-# Default CSV: data/sample.csv (20-row knowledge base)
-# Override:    CSV_PATH=./my_data.csv ./test_spot_csv_server.sh
+# Prerequisites: MongoDB must be running locally on the default port (27017).
 #
 # Usage:
-#   ./test_spot_csv_server.sh           # CLI query loop
-#   ./test_spot_csv_server.sh --ui      # + open React UI in browser
+#   ./test_spot_mongo_server.sh           # CLI query loop
+#   ./test_spot_mongo_server.sh --ui      # + open React UI in browser
 ###############################################################################
 
 # ------------------------------- UI Helpers -------------------------------- #
@@ -65,14 +63,14 @@ pause() {
 banner() {
   cat <<'EOF'
 ╔══════════════════════════════════════════════════════════════════╗
-║  Semantic Search :: CSV × Spot (Local) Validation Runner         ║
+║  Semantic Search :: MongoDB × Spot (Local) Validation Runner     ║
 ╚══════════════════════════════════════════════════════════════════╝
 EOF
   echo
 }
 
-INDEX_DIR="./csv_spot_index"
-CSV_PATH="${CSV_PATH:-./data/sample.csv}"
+INDEX_DIR="./mongo_spot_index"
+MONGO_URI="${MONGO_URI:-mongodb://localhost:27017}"
 SELECTED_BACKEND="spot"
 
 # ------------------------------ Validations -------------------------------- #
@@ -101,33 +99,41 @@ parse_args() {
   done
 }
 
-check_csv() {
-  start_spinner "Checking CSV source ($CSV_PATH)"
-  if ! ls $CSV_PATH >/dev/null 2>&1; then
-    stop_spinner "Checking CSV source ($CSV_PATH)"
-    echo "  Error: No CSV file(s) found at: $CSV_PATH"
-    echo "    Set CSV_PATH before running or place a CSV at ./data/sample.csv"
+check_mongo() {
+  start_spinner "Checking MongoDB connectivity"
+  if ! mongosh --quiet --eval "db.runCommand({ping:1})" "$MONGO_URI" >/dev/null 2>&1; then
+    stop_spinner "Checking MongoDB connectivity"
+    echo "  Error: cannot connect to MongoDB at $MONGO_URI"
+    echo "    Ensure mongod is running:  sudo systemctl start mongod"
     exit 1
   fi
-  local count
-  count="$(ls $CSV_PATH 2>/dev/null | wc -l)"
-  stop_spinner "Checking CSV source ($CSV_PATH)"
-  echo "    Found $count file(s)"
+  stop_spinner "Checking MongoDB connectivity"
+}
+
+seed_mongo() {
+  start_spinner "Seeding MongoDB (semantic_search_test)"
+  if uv run python scripts/seed_mongodb.py >/tmp/seed_mongo.log 2>&1; then
+    stop_spinner "Seeding MongoDB (semantic_search_test)"
+  else
+    stop_spinner "Seeding MongoDB (semantic_search_test)"
+    echo "  Failed to seed MongoDB. Full log:"
+    sed 's/^/    /' /tmp/seed_mongo.log
+    exit 1
+  fi
 }
 
 # ------------------------------ Main Tasks --------------------------------- #
 
-generate_csv_spot_index() {
-  start_spinner "Extracting from CSV and embedding via Spot"
-  if uv run python scripts/generate_csv_index.py \
-      --csv "$CSV_PATH" \
-      --detail-fields content \
-      --output "$INDEX_DIR" >/tmp/csv_spot_index.log 2>&1; then
-    stop_spinner "Extracting from CSV and embedding via Spot"
+generate_mongo_spot_index() {
+  start_spinner "Extracting from MongoDB and embedding via Spot"
+  if uv run python scripts/generate_mongo_index.py \
+      --uri "$MONGO_URI" \
+      --output "$INDEX_DIR" >/tmp/mongo_spot_index.log 2>&1; then
+    stop_spinner "Extracting from MongoDB and embedding via Spot"
   else
-    stop_spinner "Extracting from CSV and embedding via Spot"
+    stop_spinner "Extracting from MongoDB and embedding via Spot"
     echo "  Failed to build index. Full log:"
-    sed 's/^/    /' /tmp/csv_spot_index.log
+    sed 's/^/    /' /tmp/mongo_spot_index.log
     exit 1
   fi
 }
@@ -138,7 +144,7 @@ inspect_index() {
 import os
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
 
-path = os.environ.get("INDEX_DIR", "./csv_spot_index")
+path = os.environ.get("INDEX_DIR", "./mongo_spot_index")
 try:
     store = NumpyVectorStore.load(path)
 except Exception as exc:
@@ -149,13 +155,13 @@ print(f"Records  : {len(store._vectors)}")
 print(f"Dimension: {store.dimension}")
 print(f"Metric   : {store._metric_name}")
 
-categories: dict = {}
+collections: dict = {}
 for meta in store._metadata.values():
-    c = meta.get("category", "unknown")
-    categories[c] = categories.get(c, 0) + 1
-print("By category:")
-for cat, count in sorted(categories.items()):
-    print(f"  {cat}: {count} records")
+    c = meta.get("source_collection", "unknown")
+    collections[c] = collections.get(c, 0) + 1
+print("By collection:")
+for coll, count in sorted(collections.items()):
+    print(f"  {coll}: {count} records")
 
 print("Sample records:")
 for record_id, meta in list(store._metadata.items())[:4]:
@@ -182,7 +188,7 @@ launch_server() {
   start_spinner "Starting local server"
   uv run python main.py >/tmp/server.log 2>&1 &
   SERVER_PID=$!
-  sleep 3  # allow uvicorn to bind
+  sleep 3
   stop_spinner "Starting local server"
 }
 
@@ -323,16 +329,20 @@ main() {
   ensure_repo_root
   require_command uv
   require_command curl
+  require_command mongosh
 
   echo "Preparing environment..."
-  echo "  CSV    : $CSV_PATH"
+  echo "  MongoDB: $MONGO_URI"
   echo "  Backend: $SELECTED_BACKEND (local — no AWS required)"
   pause 1
 
-  check_csv
+  check_mongo
   pause 1
 
-  generate_csv_spot_index
+  seed_mongo
+  pause 1
+
+  generate_mongo_spot_index
   pause 1
 
   inspect_index
@@ -366,8 +376,8 @@ main() {
 
   cat <<EOF
 
-✅ CSV × Spot validation complete
-  • Source  : $CSV_PATH
+✅ MongoDB × Spot validation complete
+  • Source  : $MONGO_URI (semantic_search_test: products + articles)
   • Index   : $INDEX_DIR
   • Backend : $SELECTED_BACKEND (local stub — scores are hash-based)
   • /healthz and /readyz probed

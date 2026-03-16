@@ -79,7 +79,11 @@ def vector_store(embedding_dimension: int) -> NumpyVectorStore:
         VectorRecord(
             record_id="alpha",
             vector=np.eye(embedding_dimension, dtype=np.float32)[0],
-            metadata={"category": "documents", "region": "us-east-1"},
+            metadata={
+                "category": "documents",
+                "region": "us-east-1",
+                "_detail": {"summary": "Alpha document content", "author": "Alice"},
+            },
         ),
         VectorRecord(
             record_id="bravo",

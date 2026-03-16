@@ -2,28 +2,26 @@
 set -euo pipefail
 
 # Spot uses a local hash-based embedding stub — no AWS credentials required.
-# PROVIDER_CONFIG_JSON only needs the dimension to match the index.
 if [[ -z "${PROVIDER_CONFIG_JSON:-}" ]]; then
   export PROVIDER_CONFIG_JSON='{"dimension": 384}'
 fi
 
 ###############################################################################
-# test_spot_csv_server.sh
+# test_spot_json_server.sh
 #
-# Builds a Spot-embedded vector index from a CSV file and validates the
+# Builds a Spot-embedded vector index from a JSON file and validates the
 # local search server against it.  No AWS credentials are required.
 #
 # NOTE: The Spot provider in this codebase is a deterministic hash-based
 # stub.  Search scores will not reflect true semantic similarity until a
-# real SentenceTransformers endpoint is wired in.  Use test_bedrock_pg_server.sh
-# or test_bedrock_json_server.sh for semantically meaningful results.
+# real SentenceTransformers endpoint is wired in.
 #
-# Default CSV: data/sample.csv (20-row knowledge base)
-# Override:    CSV_PATH=./my_data.csv ./test_spot_csv_server.sh
+# Default JSON: data/sample_products.json (20-row product catalogue)
+# Override:     JSON_PATH=./my_data.json ./test_spot_json_server.sh
 #
 # Usage:
-#   ./test_spot_csv_server.sh           # CLI query loop
-#   ./test_spot_csv_server.sh --ui      # + open React UI in browser
+#   ./test_spot_json_server.sh           # CLI query loop
+#   ./test_spot_json_server.sh --ui      # + open React UI in browser
 ###############################################################################
 
 # ------------------------------- UI Helpers -------------------------------- #
@@ -65,14 +63,14 @@ pause() {
 banner() {
   cat <<'EOF'
 ╔══════════════════════════════════════════════════════════════════╗
-║  Semantic Search :: CSV × Spot (Local) Validation Runner         ║
+║  Semantic Search :: JSON × Spot (Local) Validation Runner        ║
 ╚══════════════════════════════════════════════════════════════════╝
 EOF
   echo
 }
 
-INDEX_DIR="./csv_spot_index"
-CSV_PATH="${CSV_PATH:-./data/sample.csv}"
+INDEX_DIR="./json_spot_index"
+JSON_PATH="${JSON_PATH:-./data/sample_products.json}"
 SELECTED_BACKEND="spot"
 
 # ------------------------------ Validations -------------------------------- #
@@ -101,33 +99,32 @@ parse_args() {
   done
 }
 
-check_csv() {
-  start_spinner "Checking CSV source ($CSV_PATH)"
-  if ! ls $CSV_PATH >/dev/null 2>&1; then
-    stop_spinner "Checking CSV source ($CSV_PATH)"
-    echo "  Error: No CSV file(s) found at: $CSV_PATH"
-    echo "    Set CSV_PATH before running or place a CSV at ./data/sample.csv"
+check_json() {
+  start_spinner "Checking JSON source ($JSON_PATH)"
+  if [[ ! -f "$JSON_PATH" ]]; then
+    stop_spinner "Checking JSON source ($JSON_PATH)"
+    echo "  Error: JSON file not found at: $JSON_PATH"
+    echo "    Set JSON_PATH before running or place a JSON file at ./data/sample_products.json"
     exit 1
   fi
-  local count
-  count="$(ls $CSV_PATH 2>/dev/null | wc -l)"
-  stop_spinner "Checking CSV source ($CSV_PATH)"
-  echo "    Found $count file(s)"
+  local record_count
+  record_count="$(uv run python -c "import json; print(len(json.load(open('$JSON_PATH'))))" 2>/dev/null || echo 0)"
+  stop_spinner "Checking JSON source ($JSON_PATH)"
+  echo "    Found $record_count record(s)"
 }
 
 # ------------------------------ Main Tasks --------------------------------- #
 
-generate_csv_spot_index() {
-  start_spinner "Extracting from CSV and embedding via Spot"
-  if uv run python scripts/generate_csv_index.py \
-      --csv "$CSV_PATH" \
-      --detail-fields content \
-      --output "$INDEX_DIR" >/tmp/csv_spot_index.log 2>&1; then
-    stop_spinner "Extracting from CSV and embedding via Spot"
+generate_json_spot_index() {
+  start_spinner "Extracting from JSON and embedding via Spot"
+  if uv run python scripts/generate_json_index.py \
+      --json "$JSON_PATH" \
+      --output "$INDEX_DIR" >/tmp/json_spot_index.log 2>&1; then
+    stop_spinner "Extracting from JSON and embedding via Spot"
   else
-    stop_spinner "Extracting from CSV and embedding via Spot"
+    stop_spinner "Extracting from JSON and embedding via Spot"
     echo "  Failed to build index. Full log:"
-    sed 's/^/    /' /tmp/csv_spot_index.log
+    sed 's/^/    /' /tmp/json_spot_index.log
     exit 1
   fi
 }
@@ -138,7 +135,7 @@ inspect_index() {
 import os
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
 
-path = os.environ.get("INDEX_DIR", "./csv_spot_index")
+path = os.environ.get("INDEX_DIR", "./json_spot_index")
 try:
     store = NumpyVectorStore.load(path)
 except Exception as exc:
@@ -182,7 +179,7 @@ launch_server() {
   start_spinner "Starting local server"
   uv run python main.py >/tmp/server.log 2>&1 &
   SERVER_PID=$!
-  sleep 3  # allow uvicorn to bind
+  sleep 3
   stop_spinner "Starting local server"
 }
 
@@ -325,14 +322,14 @@ main() {
   require_command curl
 
   echo "Preparing environment..."
-  echo "  CSV    : $CSV_PATH"
+  echo "  JSON   : $JSON_PATH"
   echo "  Backend: $SELECTED_BACKEND (local — no AWS required)"
   pause 1
 
-  check_csv
+  check_json
   pause 1
 
-  generate_csv_spot_index
+  generate_json_spot_index
   pause 1
 
   inspect_index
@@ -366,8 +363,8 @@ main() {
 
   cat <<EOF
 
-✅ CSV × Spot validation complete
-  • Source  : $CSV_PATH
+✅ JSON × Spot validation complete
+  • Source  : $JSON_PATH
   • Index   : $INDEX_DIR
   • Backend : $SELECTED_BACKEND (local stub — scores are hash-based)
   • /healthz and /readyz probed

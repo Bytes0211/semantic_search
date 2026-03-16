@@ -8,6 +8,8 @@ export interface SearchResultItem {
   record_id: string;
   score: number;
   metadata: Record<string, unknown>;
+  /** Detail fields for drill-down display, extracted from `_detail` at query time. */
+  detail: Record<string, unknown>;
 }
 
 /** Full response body from POST /v1/search. */
