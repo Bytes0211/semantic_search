@@ -309,10 +309,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     metadata_fields = [f.strip() for f in metadata_fields_raw.split(",") if f.strip()]
 
-    detail_fields_raw = args.detail_fields or (
-        ",".join(src_cfg.detail_fields) if src_cfg and src_cfg.detail_fields else DEFAULT_DETAIL_FIELDS
-    )
-    detail_fields = [f.strip() for f in detail_fields_raw.split(",") if f.strip()]
+    if args.detail_fields is not None:
+        detail_fields = [f.strip() for f in args.detail_fields.split(",") if f.strip()]
+    elif src_cfg is not None:
+        detail_fields = list(src_cfg.detail_fields)  # honours explicit empty []
+    else:
+        detail_fields = [f.strip() for f in DEFAULT_DETAIL_FIELDS.split(",") if f.strip()]
 
     id_field = args.id_field or (src_cfg.id_field if src_cfg and src_cfg.id_field else DEFAULT_ID_FIELD)
 
