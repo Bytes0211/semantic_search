@@ -63,6 +63,13 @@ class SearchResultItem(BaseModel):
         default_factory=dict,
         description="Metadata associated with the record.",
     )
+    detail: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Detail fields for drill-down display. Extracted from the "
+            "reserved '_detail' key in stored metadata at query time."
+        ),
+    )
 
 
 class SearchResponse(BaseModel):
@@ -181,14 +188,18 @@ class SearchRuntime:
 
         elapsed_ms = (perf_counter() - start) * 1000.0
 
-        results = [
-            SearchResultItem(
-                record_id=match.record_id,
-                score=match.score,
-                metadata=dict(match.metadata),
+        results = []
+        for match in matches:
+            meta = dict(match.metadata)
+            detail = meta.pop("_detail", None) or {}
+            results.append(
+                SearchResultItem(
+                    record_id=match.record_id,
+                    score=match.score,
+                    metadata=meta,
+                    detail=dict(detail),
+                )
             )
-            for match in matches
-        ]
 
         return SearchResponse(
             query=query,

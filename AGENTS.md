@@ -229,6 +229,16 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Added `pymongo>=4.6,<5.0` to production dependencies; removed duplicate `sqlalchemy` from dev dependencies.
 - ✅ Test suite: 208 passing (up from 157) — 51 new preprocessing tests across `tests/preprocessing/`, 33 ingestion tests.
 
+### Branch: feature/record_drill_down — Record Detail Drill-Down
+- ✅ Added `_detail` metadata convention: at index build time, configurable detail fields are stored under a reserved `_detail` key in vector store metadata, separating display/filter fields from rich drill-down content.
+- ✅ Updated `scripts/generate_pg_index.py` — added `detail_fields` to `TABLE_CONFIGS` (candidates: `["summary", "skills"]`, tickets: `["body"]`); new `_split_metadata()` helper; combined `metadata_fields + detail_fields` passed to SQL connector.
+- ✅ Updated `scripts/generate_csv_index.py` — added `--detail-fields` CLI argument (comma-separated) with same `_split_metadata()` convention.
+- ✅ Extended `SearchResultItem` in `api.py` with `detail: Dict[str, Any]`; `SearchRuntime.search` pops `_detail` from metadata and surfaces it as a separate field. Missing `_detail` → empty dict (backward compatible).
+- ✅ Added `detail: Record<string, unknown>` to frontend `SearchResultItem` TypeScript interface.
+- ✅ Enhanced `ResultCard.tsx` with inline expand/collapse toggle (chevron icon, `aria-expanded`); detail fields rendered as `<dt>`/`<dd>` blocks below metadata tags; no affordance when `detail` is empty.
+- ✅ Added `--show-detail` flag to CLI `_render_response`; detail fields print indented below metadata with `--- detail ---` separator.
+- ✅ 6 new tests: 2 runtime tests (`_detail` extraction + backward compat), 4 frontend tests (toggle visibility, expand, collapse).
+
 ### Next Steps
 - Wire `PreprocessingPipeline` into `generate_csv_index.py` and `generate_pg_index.py` so records are cleaned and chunked before embedding.
 - Build a FAISS index and upload to `s3://semantic-search-dev-faiss-index/vector_store/current/` to enable `/readyz → 200` and activate `/v1/search`.
@@ -236,7 +246,8 @@ A single Docker image is used for the search application, reused across both run
 - Run the relevance evaluation suite (`semantic-search-eval`) and Locust load tests against the live ALB endpoint once an index is loaded.
 - Update `Dockerfile` to include a frontend build step (or separate build artifact) for single-container production mode.
 - Add pgvector and Qdrant vector store adapters (currently only `NumpyVectorStore` is implemented).
-- **Record Detail Drill-Down** — implement the `_detail` metadata convention so search results can expose full record content (e.g., candidate `summary`/`skills`, ticket `body`) via inline expand in the Web UI and `--show-detail` in the CLI. Tracked in `github/ISSUES/record-detail-drilldown.md`.
+- Extract `_split_metadata()` from index scripts into a shared utility module.
+- Extend `_detail` support to remaining connectors (XML, API, MongoDB) as needed.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
@@ -247,7 +258,6 @@ A single Docker image is used for the search application, reused across both run
 6. **Documentation & Training** — runbooks, customization guides, Terraform variable reference for client teams
 
 ## Future Enhancements
-- **Record detail drill-down** — store rich fields under a `_detail` key in vector store metadata at index time; API surfaces them in a separate `detail` field on `SearchResultItem`; Web UI renders an inline expand panel; CLI adds `--show-detail` flag. See `github/ISSUES/record-detail-drilldown.md` for full plan.
 - Hybrid search (keyword + vector) for fallback scenarios
 - Multi-tenant isolation module for shared infrastructure with strict data boundaries
 - Automated schema inference for new data sources

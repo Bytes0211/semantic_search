@@ -151,6 +151,7 @@ def _render_response(
     *,
     show_metadata: bool,
     show_vector: bool,
+    show_detail: bool = False,
 ) -> None:
     """Pretty-print the search response for terminal use.
 
@@ -158,6 +159,7 @@ def _render_response(
         response: Search response returned by :class:`SearchRuntime`.
         show_metadata: Whether to print record metadata blocks.
         show_vector: Whether to print the query embedding vector.
+        show_detail: Whether to print detail fields below metadata.
     """
     print(f"Query          : {response.query}")
     print(f"Top-K requested: {response.top_k}")
@@ -179,6 +181,10 @@ def _render_response(
         print(f"{index:>2}. {item.record_id}  score={item.score:.6f}")
         if show_metadata and item.metadata:
             for key, value in item.metadata.items():
+                print(f"      {key}: {value}")
+        if show_detail and item.detail:
+            print("      --- detail ---")
+            for key, value in item.detail.items():
                 print(f"      {key}: {value}")
 
 
@@ -253,6 +259,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the query embedding vector for debugging.",
     )
     parser.add_argument(
+        "--show-detail",
+        action="store_true",
+        help="Print record detail fields (stored under _detail at index time) below metadata.",
+    )
+    parser.add_argument(
         "--list-backends",
         action="store_true",
         help="List registered embedding backends and exit.",
@@ -307,6 +318,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         response,
         show_metadata=not args.hide_metadata,
         show_vector=args.show_vector,
+        show_detail=args.show_detail,
     )
     return 0
 

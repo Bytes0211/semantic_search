@@ -142,3 +142,52 @@ def test_fastapi_readiness_without_runtime() -> None:
     readiness = client.get("/readyz")
     assert readiness.status_code == 503
     assert readiness.json()["detail"].startswith("Search runtime not initialised")
+
+
+def test_search_runtime_extracts_detail_from_metadata(
+    search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Records with _detail in metadata have it extracted into the detail field."""
+    _patch_provider_generate(
+        search_runtime,
+        _unit_vector(0, embedding_dimension),
+        monkeypatch,
+    )
+
+    request = SearchRequest(query="alpha document", top_k=1)
+    response = search_runtime.search(request)
+
+    assert response.total_results == 1
+    result = response.results[0]
+    assert result.record_id == "alpha"
+    # _detail should be extracted into detail field
+    assert result.detail == {"summary": "Alpha document content", "author": "Alice"}
+    # _detail should not remain in metadata
+    assert "_detail" not in result.metadata
+    # Original metadata fields should still be present
+    assert result.metadata["category"] == "documents"
+    assert result.metadata["region"] == "us-east-1"
+
+
+def test_search_runtime_empty_detail_when_no_detail_key(
+    search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Records without _detail produce an empty detail dict (backward compat)."""
+    _patch_provider_generate(
+        search_runtime,
+        _unit_vector(1, embedding_dimension),
+        monkeypatch,
+    )
+
+    request = SearchRequest(query="bravo ticket", top_k=1)
+    response = search_runtime.search(request)
+
+    assert response.total_results == 1
+    result = response.results[0]
+    assert result.record_id == "bravo"
+    assert result.detail == {}
+    assert "_detail" not in result.metadata
