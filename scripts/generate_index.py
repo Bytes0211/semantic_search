@@ -267,7 +267,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         backend = args.backend or app_cfg.embedding.backend
         model = args.model or app_cfg.embedding.model
-        dim = resolve_dimension(model, args.dimension) if args.dimension else app_cfg.embedding.dimension
+        dim = resolve_dimension(model, args.dimension) if args.dimension is not None else app_cfg.embedding.dimension
         app_cfg = AppConfig(
             tier=app_cfg.tier,
             embedding=EmbeddingConfig(

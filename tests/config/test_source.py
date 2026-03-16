@@ -89,3 +89,11 @@ class TestLoadSourceConfigs:
     def test_nonexistent_dir_returns_empty(self, tmp_path: Path) -> None:
         configs = load_source_configs(tmp_path / "nope")
         assert configs == {}
+
+    def test_malformed_yaml_raises_source_config_error(self, tmp_path: Path) -> None:
+        src_dir = tmp_path / "sources"
+        src_dir.mkdir()
+        (src_dir / "bad.yaml").write_text("key: [unclosed")
+
+        with pytest.raises(SourceConfigError, match="failed to parse YAML"):
+            load_source_configs(src_dir)

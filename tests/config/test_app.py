@@ -122,3 +122,25 @@ class TestLoadAppConfig:
         (tmp_path / "app.yaml").write_text("just a string")
         with pytest.raises(AppConfigError, match="YAML mapping"):
             load_app_config(tmp_path)
+
+    def test_invalid_port_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PORT", "not-a-port")
+        with pytest.raises(AppConfigError, match="PORT / server.port"):
+            load_app_config(tmp_path)
+
+    def test_invalid_search_top_k_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SEARCH_TOP_K", "many")
+        with pytest.raises(AppConfigError, match="SEARCH_TOP_K / server.search_top_k"):
+            load_app_config(tmp_path)
+
+    def test_unknown_model_without_dimension_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"embedding": {"model": "unknown/custom-model"}})
+        )
+        with pytest.raises(AppConfigError, match="not in the preset registry"):
+            load_app_config(tmp_path)
+
+    def test_invalid_embedding_dimension_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EMBEDDING_DIMENSION", "big")
+        with pytest.raises(AppConfigError, match="EMBEDDING_DIMENSION"):
+            load_app_config(tmp_path)

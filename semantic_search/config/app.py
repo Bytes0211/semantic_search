@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from semantic_search.config.models import resolve_dimension
+from semantic_search.config.models import ModelPresetError, resolve_dimension
 
 LOGGER = logging.getLogger(__name__)
 
@@ -210,6 +210,27 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
 # ---------------------------------------------------------------------------
 
 
+def _parse_int(value: Any, label: str) -> int:
+    """Coerce *value* to an integer, raising :class:`AppConfigError` on failure.
+
+    Args:
+        value: The value to coerce (string, int, or other).
+        label: Human-readable config key name used in the error message.
+
+    Returns:
+        The integer value.
+
+    Raises:
+        AppConfigError: If *value* cannot be converted to an integer.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise AppConfigError(
+            f"Invalid integer value for {label}: {value!r}."
+        ) from exc
+
+
 def _resolve_config_dir(config_dir: Optional[Path]) -> Path:
     """Determine the config directory.
 
@@ -285,6 +306,10 @@ def _resolve_embedding(raw: Dict[str, Any]) -> EmbeddingConfig:
 
     Returns:
         A resolved :class:`EmbeddingConfig`.
+
+    Raises:
+        AppConfigError: If the dimension is not a valid integer or the model
+            is unknown and no explicit dimension is provided.
     """
     emb_raw = raw.get("embedding") or {}
 
@@ -294,9 +319,16 @@ def _resolve_embedding(raw: Dict[str, Any]) -> EmbeddingConfig:
     )
 
     explicit_dim_str = os.environ.get("EMBEDDING_DIMENSION") or emb_raw.get("dimension")
-    explicit_dim = int(explicit_dim_str) if explicit_dim_str is not None else None
+    explicit_dim = (
+        _parse_int(explicit_dim_str, "EMBEDDING_DIMENSION / embedding.dimension")
+        if explicit_dim_str is not None
+        else None
+    )
 
-    dimension = resolve_dimension(model, explicit_dim)
+    try:
+        dimension = resolve_dimension(model, explicit_dim)
+    except ModelPresetError as exc:
+        raise AppConfigError(str(exc)) from exc
     extra_config = emb_raw.get("config") or {}
 
     return EmbeddingConfig(
@@ -315,15 +347,22 @@ def _resolve_server(raw: Dict[str, Any]) -> ServerConfig:
 
     Returns:
         A resolved :class:`ServerConfig`.
+
+    Raises:
+        AppConfigError: If PORT or SEARCH_TOP_K cannot be parsed as integers.
     """
     srv_raw = raw.get("server") or {}
 
     return ServerConfig(
         host=os.environ.get("HOST") or srv_raw.get("host", "0.0.0.0"),
-        port=int(os.environ.get("PORT") or srv_raw.get("port", 8000)),
+        port=_parse_int(
+            os.environ.get("PORT") or srv_raw.get("port", 8000),
+            "PORT / server.port",
+        ),
         log_level=os.environ.get("LOG_LEVEL") or srv_raw.get("log_level", "info"),
         cors_origins=os.environ.get("CORS_ORIGINS") or srv_raw.get("cors_origins", "*"),
-        search_top_k=int(
-            os.environ.get("SEARCH_TOP_K") or srv_raw.get("search_top_k", 10)
+        search_top_k=_parse_int(
+            os.environ.get("SEARCH_TOP_K") or srv_raw.get("search_top_k", 10),
+            "SEARCH_TOP_K / server.search_top_k",
         ),
     )

@@ -118,7 +118,8 @@ def load_source_configs(sources_dir: Path) -> Dict[str, SourceConfig]:
         Mapping from source name to :class:`SourceConfig`.
 
     Raises:
-        SourceConfigError: If any individual file fails validation.
+        SourceConfigError: If any individual file fails to parse or
+            fails validation.
     """
     configs: Dict[str, SourceConfig] = {}
     if not sources_dir.is_dir():
@@ -131,7 +132,12 @@ def load_source_configs(sources_dir: Path) -> Dict[str, SourceConfig]:
         name = path.stem
         LOGGER.debug("Loading source config: %s", path)
         with open(path) as fh:
-            raw = yaml.safe_load(fh)
+            try:
+                raw = yaml.safe_load(fh)
+            except yaml.YAMLError as exc:
+                raise SourceConfigError(
+                    f"Source '{name}': failed to parse YAML in {path}: {exc}"
+                ) from exc
         configs[name] = parse_source_config(name, raw)
 
     LOGGER.info("Loaded %d source config(s) from %s", len(configs), sources_dir)
