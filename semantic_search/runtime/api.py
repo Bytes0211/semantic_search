@@ -191,13 +191,14 @@ class SearchRuntime:
         results = []
         for match in matches:
             meta = dict(match.metadata)
-            detail = meta.pop("_detail", None) or {}
+            raw_detail = meta.pop("_detail", None)
+            detail = raw_detail if isinstance(raw_detail, dict) else {}
             results.append(
                 SearchResultItem(
                     record_id=match.record_id,
                     score=match.score,
                     metadata=meta,
-                    detail=dict(detail),
+                    detail=detail,
                 )
             )
 

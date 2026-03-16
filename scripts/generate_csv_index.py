@@ -25,6 +25,14 @@ Usage::
 
     # Glob pattern for multiple files
     uv run python scripts/generate_csv_index.py --csv './data/*.csv'
+
+Detail fields and text fields may overlap intentionally.  A column such as
+``content`` is a good embedding source (captured via ``--text-fields``) *and*
+a useful drill-down field (captured via ``--detail-fields``).  When a field
+appears in both, it is embedded into the vector **and** stored under ``_detail``
+in the metadata — it will not appear as a visible tag on the search result
+card unless the user expands the drill-down panel.  This keeps cards concise
+while still surfacing the full text on demand.
 """
 
 from __future__ import annotations
@@ -246,7 +254,13 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--detail-fields",
         default=DEFAULT_DETAIL_FIELDS,
-        help="Comma-separated columns stored under _detail for drill-down display (default: none).",
+        help=(
+            f"Comma-separated columns stored under _detail for drill-down display "
+            f"(default: {DEFAULT_DETAIL_FIELDS!r}). "
+            "May overlap with --text-fields: overlapping columns are embedded into "
+            "the vector AND stored in _detail, so they won't appear as visible "
+            "metadata tags unless the user expands the drill-down panel."
+        ),
     )
     parser.add_argument(
         "--output",
