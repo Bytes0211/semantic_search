@@ -1,32 +1,19 @@
 # Semantic Search for Internal Databases
 
+![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Tests](https://img.shields.io/badge/tests-208_passing-brightgreen?logo=pytest&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111%2B-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-Bedrock%20%7C%20ECS%20%7C%20Lambda-FF9900?logo=amazonaws&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-IaC-7B42BC?logo=terraform&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-container-2496ED?logo=docker&logoColor=white)
+![License](https://img.shields.io/badge/license-TBD-lightgrey)
+
 A semantic search system that uses LLM-powered embeddings and vector search to enable natural-language queries across internal structured and semi-structured data sources. Replaces rigid keyword search with meaning-aware retrieval.
 
 ## Problem
-
-```mermaid
-sequenceDiagram
-    participant DS as Data Sources<br/>(CSV/SQL/JSON/API)
-    participant ING as Ingestion Layer
-    participant PRE as Preprocessing
-    participant EMB as Embedding Provider<br/>(Bedrock/Spot/SageMaker)
-    participant VDB as Vector Store<br/>(FAISS/Qdrant/pgvector)
-    participant API as Search Service<br/>(Fargate or Lambda)
-    participant CLI as Client<br/>(REST/CLI/UI)
-
-    DS->>ING: Raw records
-    ING->>PRE: Canonical records → S3
-    PRE->>EMB: Cleaned text fields
-    EMB->>VDB: Vectors + metadata (upsert)
-    EMB->>VDB: Write to S3 (backup)
-    CLI->>API: Natural-language query
-    API->>EMB: Embed query
-    EMB-->>API: Query vector
-    API->>VDB: Approximate nearest-neighbour search
-    VDB-->>API: Top-K results (cosine similarity)
-    API-->>CLI: Ranked results (+ optional re-ranking)
-
-```
 
 Organizations store valuable information across databases, CRMs, spreadsheets, and legacy systems but rely on keyword-only search that fails to surface relevant insights. This leads to poor search accuracy, slow manual review, and missed connections across data sources.
 

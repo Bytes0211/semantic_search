@@ -236,6 +236,7 @@ A single Docker image is used for the search application, reused across both run
 - Run the relevance evaluation suite (`semantic-search-eval`) and Locust load tests against the live ALB endpoint once an index is loaded.
 - Update `Dockerfile` to include a frontend build step (or separate build artifact) for single-container production mode.
 - Add pgvector and Qdrant vector store adapters (currently only `NumpyVectorStore` is implemented).
+- **Record Detail Drill-Down** — implement the `_detail` metadata convention so search results can expose full record content (e.g., candidate `summary`/`skills`, ticket `body`) via inline expand in the Web UI and `--show-detail` in the CLI. Tracked in `github/ISSUES/record-detail-drilldown.md`.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
@@ -246,6 +247,7 @@ A single Docker image is used for the search application, reused across both run
 6. **Documentation & Training** — runbooks, customization guides, Terraform variable reference for client teams
 
 ## Future Enhancements
+- **Record detail drill-down** — store rich fields under a `_detail` key in vector store metadata at index time; API surfaces them in a separate `detail` field on `SearchResultItem`; Web UI renders an inline expand panel; CLI adds `--show-detail` flag. See `github/ISSUES/record-detail-drilldown.md` for full plan.
 - Hybrid search (keyword + vector) for fallback scenarios
 - Multi-tenant isolation module for shared infrastructure with strict data boundaries
 - Automated schema inference for new data sources

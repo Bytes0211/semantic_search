@@ -53,7 +53,7 @@ TABLE_CONFIGS: Dict[str, Dict] = {
         ),
         "text_fields": ["title", "body"],
         "id_field": "id",
-        "metadata_fields": ["category", "priority", "status"],
+        "metadata_fields": ["title", "priority", "status"],
         "id_prefix": "ticket",
     },
     "candidates": {
@@ -63,7 +63,7 @@ TABLE_CONFIGS: Dict[str, Dict] = {
         ),
         "text_fields": ["full_name", "summary", "skills"],
         "id_field": "id",
-        "metadata_fields": ["location", "years_experience", "availability"],
+        "metadata_fields": ["full_name", "location", "years_experience"],
         "id_prefix": "candidate",
     },
 }

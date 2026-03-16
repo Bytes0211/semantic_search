@@ -178,7 +178,7 @@ def _render_response(
     for index, item in enumerate(response.results, start=1):
         print(f"{index:>2}. {item.record_id}  score={item.score:.6f}")
         if show_metadata and item.metadata:
-            for key, value in sorted(item.metadata.items()):
+            for key, value in item.metadata.items():
                 print(f"      {key}: {value}")
 
 
