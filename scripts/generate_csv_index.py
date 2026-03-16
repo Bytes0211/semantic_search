@@ -341,7 +341,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             from semantic_search.config.models import resolve_dimension
 
-            dimension = resolve_dimension(model_name, None)
+            try:
+                dimension = resolve_dimension(model_name, None)
+            except Exception as exc:  # ModelPresetError
+                LOGGER.critical("Cannot resolve dimension for model '%s': %s", model_name, exc)
+                raise SystemExit(1) from exc
 
     store = build_csv_spot_index(
         csv_path=csv_path,

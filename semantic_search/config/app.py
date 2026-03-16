@@ -231,6 +231,24 @@ def _parse_int(value: Any, label: str) -> int:
         ) from exc
 
 
+def _normalise_cors_origins(value: Any) -> str:
+    """Coerce *value* to a comma-separated origins string.
+
+    Accepts a YAML list (``["http://a", "http://b"]``) or a plain string
+    (``"http://a,http://b"``).  Prevents ``AttributeError`` when YAML authors
+    use a sequence instead of a comma-separated string.
+
+    Args:
+        value: Raw value from the YAML file or environment variable.
+
+    Returns:
+        Comma-separated string of origins.
+    """
+    if isinstance(value, list):
+        return ",".join(str(o) for o in value)
+    return str(value)
+
+
 def _resolve_config_dir(config_dir: Optional[Path]) -> Path:
     """Determine the config directory.
 
@@ -262,7 +280,10 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
         return {}
     LOGGER.info("Loading app config from %s", path)
     with open(path) as fh:
-        data = yaml.safe_load(fh) or {}
+        try:
+            data = yaml.safe_load(fh) or {}
+        except yaml.YAMLError as exc:
+            raise AppConfigError(f"Failed to parse YAML in {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise AppConfigError(f"Expected a YAML mapping in {path}, got {type(data).__name__}.")
     return data
@@ -360,7 +381,9 @@ def _resolve_server(raw: Dict[str, Any]) -> ServerConfig:
             "PORT / server.port",
         ),
         log_level=os.environ.get("LOG_LEVEL") or srv_raw.get("log_level", "info"),
-        cors_origins=os.environ.get("CORS_ORIGINS") or srv_raw.get("cors_origins", "*"),
+        cors_origins=_normalise_cors_origins(
+            os.environ.get("CORS_ORIGINS") or srv_raw.get("cors_origins", "*")
+        ),
         search_top_k=_parse_int(
             os.environ.get("SEARCH_TOP_K") or srv_raw.get("search_top_k", 10),
             "SEARCH_TOP_K / server.search_top_k",

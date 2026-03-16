@@ -123,6 +123,18 @@ class TestLoadAppConfig:
         with pytest.raises(AppConfigError, match="YAML mapping"):
             load_app_config(tmp_path)
 
+    def test_syntax_error_yaml_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text("key: [unclosed")
+        with pytest.raises(AppConfigError, match="Failed to parse YAML"):
+            load_app_config(tmp_path)
+
+    def test_cors_origins_yaml_list_normalised(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"server": {"cors_origins": ["http://localhost:5173", "http://localhost:4173"]}})
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.server.cors_origins == "http://localhost:5173,http://localhost:4173"
+
     def test_invalid_port_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PORT", "not-a-port")
         with pytest.raises(AppConfigError, match="PORT / server.port"):
