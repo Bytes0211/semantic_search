@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from semantic_search.config.app import PreprocessingConfig, build_preprocessing_pipeline
 from semantic_search.config.metadata import split_metadata
 from semantic_search.embeddings.base import EmbeddingInput
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
@@ -72,13 +73,19 @@ TABLE_CONFIGS: Dict[str, Dict] = {
 }
 
 
-def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
+def extract_inputs(
+    table: str,
+    config: Dict,
+    preprocessing_pipeline: Optional[Any] = None,
+) -> List[EmbeddingInput]:
     """Extract records from a PostgreSQL table and convert to EmbeddingInputs.
 
     Args:
         table: Table name, stored as ``source_table`` in each record's metadata.
         config: Connector configuration dict containing query, text_fields,
             id_field, metadata_fields, detail_fields, and id_prefix keys.
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.
 
     Returns:
         List of EmbeddingInput objects ready for the embedding pipeline.
@@ -113,6 +120,10 @@ def extract_inputs(table: str, config: Dict) -> List[EmbeddingInput]:
         LOGGER.critical("Failed to extract from %s: %s", table, exc)
         raise SystemExit(1) from exc
 
+    if preprocessing_pipeline is not None:
+        records = list(preprocessing_pipeline.process(records))
+        LOGGER.info("  After preprocessing: %d records", len(records))
+
     prefix = config["id_prefix"]
     inputs = [
         EmbeddingInput(
@@ -133,6 +144,7 @@ def build_pg_bedrock_index(
     tables: List[str],
     region: str,
     model: str = BEDROCK_MODEL,
+    preprocessing_pipeline: Optional[Any] = None,
 ) -> NumpyVectorStore:
     """Extract records from PostgreSQL tables and embed them via AWS Bedrock.
 
@@ -140,6 +152,8 @@ def build_pg_bedrock_index(
         tables: List of table names to process (must be keys in TABLE_CONFIGS).
         region: AWS region string for the Bedrock runtime (e.g. ``"us-east-1"``).
         model: Bedrock model ID (default: Titan embed-text-v1).
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.
 
     Returns:
         A populated NumpyVectorStore with real semantic embedding vectors.
@@ -161,7 +175,7 @@ def build_pg_bedrock_index(
 
     all_inputs: List[EmbeddingInput] = []
     for table in tables:
-        all_inputs.extend(extract_inputs(table, TABLE_CONFIGS[table]))
+        all_inputs.extend(extract_inputs(table, TABLE_CONFIGS[table], preprocessing_pipeline))
 
     if not all_inputs:
         LOGGER.critical("No records extracted — nothing to embed.")
@@ -229,6 +243,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=None,
         help="Path to config directory containing app.yaml (e.g. ./config)",
     )
+    parser.add_argument(
+        "--no-preprocessing",
+        action="store_true",
+        default=False,
+        help="Disable all preprocessing (cleaning and chunking) regardless of config.",
+    )
     return parser.parse_args(argv)
 
 
@@ -280,7 +300,25 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     tables = [args.table] if args.table else list(TABLE_CONFIGS.keys())
 
-    store = build_pg_bedrock_index(tables, region=region, model=model)
+    # Build preprocessing pipeline (CLI flag > app config > built-in defaults)
+    preprocessing_pipeline = None
+    if not args.no_preprocessing:
+        app_cfg_local = None
+        if args.app_config:
+            from semantic_search.config.app import load_app_config
+            app_cfg_local = load_app_config(Path(args.app_config))
+        pp_cfg = app_cfg_local.preprocessing if app_cfg_local else PreprocessingConfig()
+        preprocessing_pipeline = build_preprocessing_pipeline(pp_cfg)
+        if preprocessing_pipeline is not None:
+            LOGGER.info(
+                "Preprocessing enabled: clean=%s  chunk=%s  chunk_size=%d  overlap=%d",
+                pp_cfg.clean, pp_cfg.chunk, pp_cfg.chunk_size, pp_cfg.overlap,
+            )
+
+    store = build_pg_bedrock_index(
+        tables, region=region, model=model,
+        preprocessing_pipeline=preprocessing_pipeline,
+    )
     store.save(args.output)
     LOGGER.info("Saved %d records to %r", len(store), args.output)
 

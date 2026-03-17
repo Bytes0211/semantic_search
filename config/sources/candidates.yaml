@@ -11,14 +11,17 @@ connector:
 
 id_field: id
 id_prefix: candidate
+# Concatenated and embedded into hte vector - drives semantic search
 text_fields:
   - full_name
   - summary
   - skills
+# Stored as visible, filterable tages  on result cards
 metadata_fields:
   - full_name
   - location
   - years_experience
+# hidden until the user expands the drill-down panel
 detail_fields:
   - summary
   - skills

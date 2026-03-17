@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from semantic_search.config.app import PreprocessingConfig, build_preprocessing_pipeline
 from semantic_search.config.metadata import split_metadata
 from semantic_search.embeddings.base import EmbeddingInput
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
@@ -61,6 +62,7 @@ def extract_inputs(
     metadata_fields: List[str],
     detail_fields: Optional[List[str]] = None,
     jq_filter: Optional[str] = None,
+    preprocessing_pipeline: Optional[Any] = None,
 ) -> List[EmbeddingInput]:
     """Extract records from JSON files and convert to EmbeddingInputs.
 
@@ -74,6 +76,8 @@ def extract_inputs(
             for drill-down display.
         jq_filter: Optional jq-style dotted path to extract record arrays
             from nested JSON structures.
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.
 
     Returns:
         List of EmbeddingInput objects ready for the embedding pipeline.
@@ -106,6 +110,10 @@ def extract_inputs(
         LOGGER.critical("Failed to extract from JSON: %s", exc)
         raise SystemExit(1) from exc
 
+    if preprocessing_pipeline is not None:
+        records = list(preprocessing_pipeline.process(records))
+        LOGGER.info("  After preprocessing: %d records", len(records))
+
     inputs = [
         EmbeddingInput(
             record_id=r.record_id,
@@ -127,6 +135,7 @@ def build_json_spot_index(
     jq_filter: Optional[str] = None,
     model_name: str = DEFAULT_MODEL,
     dimension: int = DEFAULT_DIM,
+    preprocessing_pipeline: Optional[Any] = None,
 ) -> NumpyVectorStore:
     """Extract JSON records and embed them using the Spot provider.
 
@@ -140,6 +149,8 @@ def build_json_spot_index(
         jq_filter: Optional jq-style dotted path to extract record arrays.
         model_name: Logical model identifier reported in result metadata.
         dimension: Embedding vector dimensionality (must match the model).
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.
 
     Returns:
         A populated NumpyVectorStore ready to be saved and served.
@@ -164,7 +175,8 @@ def build_json_spot_index(
         raise SystemExit(1) from exc
 
     inputs = extract_inputs(
-        json_path, text_fields, id_field, metadata_fields, detail_fields, jq_filter
+        json_path, text_fields, id_field, metadata_fields, detail_fields, jq_filter,
+        preprocessing_pipeline=preprocessing_pipeline,
     )
     if not inputs:
         LOGGER.critical("No records extracted — nothing to embed.")
@@ -254,6 +266,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=None,
         help="Path to config directory containing app.yaml (e.g. ./config)",
     )
+    parser.add_argument(
+        "--no-preprocessing",
+        action="store_true",
+        default=False,
+        help="Disable all preprocessing (cleaning and chunking) regardless of config.",
+    )
     return parser.parse_args(argv)
 
 
@@ -335,6 +353,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                 LOGGER.critical("Cannot resolve dimension for model '%s': %s", model_name, exc)
                 raise SystemExit(1) from exc
 
+    # Build preprocessing pipeline (CLI flag > app config > built-in defaults)
+    preprocessing_pipeline = None
+    if not args.no_preprocessing:
+        pp_cfg = app_cfg.preprocessing if app_cfg else PreprocessingConfig()
+        preprocessing_pipeline = build_preprocessing_pipeline(pp_cfg)
+        if preprocessing_pipeline is not None:
+            LOGGER.info(
+                "Preprocessing enabled: clean=%s  chunk=%s  chunk_size=%d  overlap=%d",
+                pp_cfg.clean, pp_cfg.chunk, pp_cfg.chunk_size, pp_cfg.overlap,
+            )
+
     store = build_json_spot_index(
         json_path=json_path,
         text_fields=text_fields,
@@ -344,6 +373,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         jq_filter=args.jq_filter,
         model_name=model_name,
         dimension=dimension,
+        preprocessing_pipeline=preprocessing_pipeline,
     )
     store.save(args.output)
     LOGGER.info("Saved %d records to %r", len(store), args.output)

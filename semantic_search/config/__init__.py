@@ -3,6 +3,7 @@
 Public API
 ----------
 - **App config:** :func:`load_app_config`, :class:`AppConfig`, :class:`Tier`
+- **Preprocessing config:** :class:`PreprocessingConfig`
 - **Source configs:** :func:`load_source_configs`, :class:`SourceConfig`
 - **Display configs:** :class:`DisplayConfig`, :func:`parse_display_config`
 - **Model presets:** :func:`resolve_dimension`, :data:`MODEL_PRESETS`
@@ -13,9 +14,11 @@ from semantic_search.config.app import (
     AppConfig,
     AppConfigError,
     EmbeddingConfig,
+    PreprocessingConfig,
     ServerConfig,
     Tier,
     TIER_FEATURES,
+    build_preprocessing_pipeline,
     load_app_config,
 )
 from semantic_search.config.display import (
@@ -45,7 +48,9 @@ __all__ = [
     # app
     "AppConfig",
     "AppConfigError",
+    "build_preprocessing_pipeline",
     "EmbeddingConfig",
+    "PreprocessingConfig",
     "ServerConfig",
     "Tier",
     "TIER_FEATURES",

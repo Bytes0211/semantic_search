@@ -220,8 +220,11 @@ def build_app() -> Any:
                     _StaticFiles(directory=str(assets_dir)),
                     name="ui-assets",
                 )
-            app.mount("/ui", _StaticFiles(directory=str(dist), html=True), name="ui")
-            LOGGER.info("Web UI mounted at /ui (frontend/dist)")
+            # Mount the SPA as a catch-all at the root so that
+            # http://<host>/ serves the React app.  API routes registered
+            # above take precedence over this static mount.
+            app.mount("/", _StaticFiles(directory=str(dist), html=True), name="ui")
+            LOGGER.info("Web UI mounted at / (frontend/dist)")
         else:
             LOGGER.warning(
                 "ENABLE_UI=true but frontend/dist/ was not found — UI not mounted. "

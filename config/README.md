@@ -144,6 +144,50 @@ Options:
 - `--model <model>` — Override embedding model
 - `--output ./vector_index` — Output directory
 
+## Preprocessing
+
+The `preprocessing` block controls the
+[`PreprocessingPipeline`](../semantic_search/preprocessing/) that cleans and
+optionally chunks records **before** they reach the embedding provider.
+
+```yaml
+preprocessing:
+  enabled: true        # false → pass-through (no cleaning or chunking)
+  clean: true          # HTML stripping, Unicode NFKC, whitespace collapsing
+  chunk: false         # split long records at word boundaries (disabled by default)
+  chunk_size: 512      # max characters per chunk (only used when chunk: true)
+  overlap: 64          # overlap characters between consecutive chunks
+```
+
+### Environment Variable Mapping
+
+| Env Var                    | YAML Path                    | Default |
+|----------------------------|------------------------------|---------|
+| `PREPROCESSING_ENABLED`    | `preprocessing.enabled`      | `true`  |
+| `PREPROCESSING_CLEAN`      | `preprocessing.clean`        | `true`  |
+| `PREPROCESSING_CHUNK`      | `preprocessing.chunk`        | `false` |
+| `PREPROCESSING_CHUNK_SIZE` | `preprocessing.chunk_size`   | `512`   |
+| `PREPROCESSING_OVERLAP`    | `preprocessing.overlap`      | `64`    |
+
+### Behaviour
+
+- **`clean: true`** — strips HTML tags, applies NFKC Unicode normalisation, and
+  collapses whitespace.  Recommended for all deployments.
+- **`chunk: false` (default)** — records are embedded as single units.  Suitable
+  for short-to-medium text (titles, summaries, support tickets).
+- **`chunk: true`** — long records (e.g. multi-paragraph documents) are split
+  at word boundaries.  Each chunk is stored as a separate vector with ID
+  `{original_id}#chunk-{n}`.  **Review embedding cost impact** before enabling
+  in production — chunking multiplies the number of embedding calls.
+
+To disable preprocessing entirely (embed raw text):
+
+```bash
+uv run python scripts/generate_index.py --no-preprocessing
+```
+
+---
+
 ## Switching Tiers
 
 Copy an example to `config/app.yaml`:
