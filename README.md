@@ -1,4 +1,4 @@
-# Semantic Search
+# Semantic Search for Internal Databases
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
@@ -7,11 +7,17 @@
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-Bedrock%20%7C%20ECS%20%7C%20Lambda-FF9900?logo=amazonaws&logoColor=white)
+![IAM](https://img.shields.io/badge/IAM-Least%20Privilege-orange?logo=amazonaws&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-IaC-7B42BC?logo=terraform&logoColor=white)
+![Observability](https://img.shields.io/badge/Observability-CloudWatch-FF4F8B?logo=amazonaws&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-container-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-TBD-lightgrey)
 
 A semantic search system that uses LLM-powered embeddings and vector search to enable natural-language queries across internal structured and semi-structured data sources. Replaces rigid keyword search with meaning-aware retrieval.
+
+**Key references:**
+- [Product Requirements](docs/PRD-semantic-search.md)
+- [Technical Approach](docs/technical_approach.md)
 
 ## Problem
 
@@ -31,11 +37,18 @@ Keyword search typically retrieives <40% of relevant documents in enterprise dat
 | **Impact on User** | Slow, frustrating, incomplete answers | Fast, accurate retrieval of the correct workflow |
 | **Enterprise Pain Point Exposed** | Policies, CRM notes, and spreadsheets use inconsistent terminology | Embeddings unify meaning across heterogeneous data sources |
 
+## Goals
+
+- Natural-language semantic search with 90%+ relevance on test queries
+- Sub-second query latency
+- Extensible data ingestion with minimal configuration per new source
+- Production-ready, modular codebase with clear documentation
+
 ## Key Features
 
 - **Natural-language search** across CSV, SQL, JSON, and API data sources
 - **YAML-driven configuration** — tier (Basic/Standard/Premium), embedding backend/model, per-source display layout, and server settings in `config/app.yaml` and `config/sources/*.yaml`; no Python edits required to customise a deployment
-- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, REST API, and MongoDB adapters normalise records into a shared schema for the embedding pipeline (see `developer/pluggable_data_sources.md`)
+- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, REST API, and MongoDB adapters normalise records into a shared schema for the embedding pipeline
 - **Text preprocessing pipeline** — `TextCleaner` (HTML strip, Unicode normalisation, whitespace collapse), `TextChunker` (word-boundary splits with configurable size/overlap), and `PreprocessingPipeline` wiring them together with optional opt-in per stage
 - **Pluggable embedding providers** — AWS Bedrock, Spot-hosted open-source models, SageMaker; model + dimension auto-resolved from presets
 - **Multiple vector stores** — FAISS, Qdrant, or pgvector
@@ -45,8 +58,17 @@ Keyword search typically retrieives <40% of relevant documents in enterprise dat
 - **Unified index builder** — `scripts/generate_index.py` reads YAML configs and builds a combined multi-source index in one command
 - **Validation UI** — self-contained single-page web interface served at `/ui` for issuing queries during local development and deployment validation
 - **React Web UI** — React 18 + TypeScript SPA (`frontend/`) with search bar, result cards, dynamic filter panel, pagination, and an optional Premium-tier analytics sidebar; served via S3 + CloudFront or a `StaticFiles` mount on the same container
+- **Security hardening** — IAM least-privilege permission boundaries, KMS customer-managed keys with auto-rotation for S3/SQS/SNS encryption, CloudTrail audit logging, VPC interface endpoints (Bedrock, ECR, CloudWatch Logs, SQS, SNS) to keep traffic off the public internet, and configurable HTTPS-only egress restrictions on all service security groups
 
 ## Architecture Overview
+
+1. **Data Ingestion Layer** — Pluggable extractors normalize source data (CSV, SQL, JSON, API) and emit canonical records to S3.
+2. **Preprocessing** — Python pipeline for text cleaning, field selection, and chunking.
+3. **Embedding Provider Interface** — Configurable adapters for AWS Bedrock, Spot-hosted models, or SageMaker endpoints; selected via `var.embedding_backend`.
+4. **Vector Store** — FAISS (on ECS), Qdrant, or pgvector; selected via Terraform module parameters.
+5. **Search Service Runtime** — Containerized FastAPI deployable to ECS/Fargate or Lambda, toggled by `var.search_runtime`.
+6. **Client Interfaces** — REST API, CLI, and optional web UI.
+7. **Observability** — CloudWatch logging, metrics, alarms, and dashboards.
 
 ```
 Data Sources → Ingestion → Preprocessing → Embedding → Vector Store → Search API → Results
@@ -69,7 +91,7 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 6 — Web UI:** Complete. React 18 + TypeScript SPA in `frontend/` with SearchBar, ResultCard, FilterPanel, Pagination, AnalyticsPanel, and hooks (useSearch, useConfig, useAnalytics, useDebounce). Tier-gated analytics panel via `GET /v1/config`. 15 component tests (Vitest + RTL). Production build in `frontend/dist/`.
 - **feature/data-abstraction — Data Abstraction & Preprocessing:** Complete. Six pluggable connectors (`ingestion/` package: CSV, SQL, JSON/JSONL, XML, REST API, MongoDB), text preprocessing pipeline (`preprocessing/` package: TextCleaner, TextChunker, PreprocessingPipeline), sample dataset (`data/sample.csv`), index generation scripts (`scripts/generate_csv_index.py`, `scripts/generate_pg_index.py`), three validation runner scripts (`test_spot_csv_server.sh`, `test_bedrock_json_server.sh`, `test_bedrock_pg_server.sh`), functional process flow doc, and 9 PR review fixes applied. Test suite: 208 passing.
 - **feature/config_enhancements — Configuration Externalization:** Complete. YAML-driven configuration system (`semantic_search/config/` package) with `config/app.yaml` for tier/embedding/server settings and `config/sources/*.yaml` for per-source connector + display configuration. Three-tier feature matrix (Basic/Standard/Premium), model presets with auto-dimension resolution, unified `scripts/generate_index.py`, `--config`/`--app-config` flags on all generate scripts, extended `/v1/config` endpoint, config-driven frontend rendering, and full backward compatibility. Test suite: 261 passing (51 new config tests).
-- **Phase 7 — Preprocessing Integration & Live Search Activation:** Complete. `PreprocessingConfig` dataclass and `build_preprocessing_pipeline()` factory added to `semantic_search/config/app.py` with full `PREPROCESSING_*` env-var override support; `PreprocessingPipeline` wired into all five generate scripts (applied after connector extraction, before embedding); `--no-preprocessing` flag on every script. `Dockerfile` upgraded to a 3-stage multi-stage build (Node 20 frontend builder + Python builder + slim runtime) so `ENABLE_UI=true` serves the React SPA at `/` in a single container. Index build runbook added (`developer/runbooks/index_build.md`). Test suite: 292 passing (24 new wiring tests + 7 config tests).
+- **Phase 7 — Preprocessing Integration & Live Search Activation:** Complete. `PreprocessingConfig` dataclass and `build_preprocessing_pipeline()` factory added to `semantic_search/config/app.py` with full `PREPROCESSING_*` env-var override support; `PreprocessingPipeline` wired into all five generate scripts (applied after connector extraction, before embedding); `--no-preprocessing` flag on every script. `Dockerfile` upgraded to a 3-stage multi-stage build (Node 20 frontend builder + Python builder + slim runtime) so `ENABLE_UI=true` serves the React SPA at `/` in a single container. Index build runbook added (`docs/runbooks/index_build.md`). Test suite: 292 passing (24 new wiring tests + 7 config tests).
 
 ## Live Environment (dev)
 
@@ -128,7 +150,7 @@ export VECTOR_STORE_PATH=/opt/index
 uv run python main.py
 ```
 
-Alternatively, set `VECTOR_STORE_PATH` to the S3 URI directly only if your deployment wraps `main.py` with an S3-download step (see `developer/runbooks/runtime_deploy.md`).
+Alternatively, set `VECTOR_STORE_PATH` to the S3 URI directly only if your deployment wraps `main.py` with an S3-download step (see `docs/runbooks/runtime_deploy.md`).
 
 ### Step 4 — Confirm readiness
 
@@ -262,6 +284,26 @@ Infrastructure is managed through Terraform variables:
 - `var.search_runtime` — `"fargate"` or `"lambda"`
 - `var.embedding_backend` — selects embedding provider (Bedrock, Spot, SageMaker)
 - `var.ingestion_mode` — `"batch"` (default) or `"stream"`
+
+## Delivery Phases
+1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
+2. **Build Application Skeleton** — establish provider interfaces, ingestion pipeline, and search API baseline
+3. **Integrate Embedding Providers** — implement adapters, add integration tests, document setup steps
+4. **Implement Deployment Profiles** — default Fargate runtime with Lambda alternative; provide deployment recipes
+5. **Performance Validation** — relevance evaluation suite and latency benchmarks for both runtimes
+6. **Documentation & Training** — runbooks, customization guides, Terraform variable reference for client teams
+
+## Future Enhancements
+- Hybrid search (keyword + vector) for fallback scenarios
+- Multi-tenant isolation module for shared infrastructure with strict data boundaries
+- Automated schema inference for new data sources
+- Human feedback loops to continuously improve relevance metrics
+
+## Scope Boundaries
+
+**In scope:** Data ingestion, embedding generation, vector storage, semantic search API/CLI, documentation, optional UI and AWS deployment.
+
+**Out of scope:** Full enterprise search platform, multi-tenant architecture, deep data cleaning.
 
 ## Documentation
 

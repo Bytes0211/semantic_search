@@ -253,7 +253,7 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Updated `developer/guides/data-and-testing-guide.md` with config-driven workflow, YAML reference, and unified builder documentation.
 - ✅ Test suite: 261 passing (up from 210) — 51 new config tests, 0 regressions.
 
-### Phase 7 — Preprocessing Integration & Live Search Activation
+### Phase 7 — Preprocessing Integration & Live Search Activation — Complete
 - ✅ Added `PreprocessingConfig` dataclass to `semantic_search/config/app.py` with `enabled`, `clean`, `chunk`, `chunk_size`, `overlap` fields and full env-var override support (`PREPROCESSING_*`).
 - ✅ Added `build_preprocessing_pipeline(cfg)` factory function to `semantic_search/config/app.py` — constructs a `PreprocessingPipeline` from config; returns `None` when preprocessing is a no-op (disabled or neither clean nor chunk enabled).
 - ✅ Exported `PreprocessingConfig` and `build_preprocessing_pipeline` from `semantic_search/config/__init__.py`.
@@ -266,11 +266,28 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Created `tests/preprocessing/test_pipeline_wiring.py` — 24 new tests covering CSV extract_inputs wiring, unified builder `extract_from_source` wiring, `--no-preprocessing` CLI parsing, and `PreprocessingConfig`-to-pipeline integration.
 - ✅ Test suite: **292 passing** (up from 268) — 24 new wiring tests + 7 config tests, 0 regressions.
 
+### Branch: feature/iam-security — IAM Security Hardening
+- ✅ Created `infrastructure/modules/iam_security/` module: permission boundary policy (scoped to project S3/SQS/SNS/Bedrock/CW/ECR/KMS/Secrets Manager with deny statements for privilege escalation, bucket destruction, and infra management), KMS customer-managed key with auto-rotation and service principal grants, CloudTrail trail with S3 bucket policy + optional CW Logs delivery + optional data events, and exported deny-guardrail policy JSON.
+- ✅ Added VPC endpoints to `core_network`: S3 gateway endpoint, interface endpoints for SQS/SNS/Bedrock Runtime/CloudWatch Logs/ECR API/ECR DKR (all gated by toggle variables), shared VPCE security group allowing HTTPS from VPC CIDR only.
+- ✅ Wired permission boundaries into `search_service_fargate` (task role) and `search_service_lambda` (execution role) via `var.permissions_boundary_arn`.
+- ✅ Attached deny-guardrail inline policies to both Fargate task role and Lambda execution role via `var.deny_guardrail_policy_json`.
+- ✅ Replaced blanket `0.0.0.0/0` all-port egress on service and Lambda security groups with dynamic rules: unrestricted (default) or HTTPS-only to VPC CIDR when `var.restrict_egress = true`.
+- ✅ Added KMS encryption to `data_plane`: S3 canonical and embeddings buckets switch from SSE-S3 to SSE-KMS, SQS ingestion + DLQ queues and SNS reindex topic encrypted when `kms_key_arn` is provided.
+- ✅ Attached previously dangling IAM policies in dev environment: `bedrock_invoke_policy_arn` → task role, `s3_access_policy_arn` → task role, `index_read_policy_arn` → task role (Fargate and Lambda variants, count-gated).
+- ✅ Added `role_name` and `role_arn` outputs to `search_service_lambda` for correct policy attachment targeting.
+- ✅ Dev environment fully wired: `iam_security` module instantiated with project bucket/queue/topic ARNs, `kms_key_arn` passed to `data_plane`, VPC endpoint toggles passed to `core_network`, security vars passed to runtime modules.
+- ✅ `terraform validate` passes.
+- ✅ Created `github/ISSUES/iam-security-hardening.md` tracking all deliverables and follow-ups.
+
 **Remaining (infrastructure, deferred):**
 - Build and upload FAISS index to S3 → confirm `/readyz → 200` (requires live AWS credentials).
 - Run `semantic-search-eval` and Locust against the live ALB endpoint with a real index.
 - Add pgvector and Qdrant vector store adapters (currently only `NumpyVectorStore` is implemented).
 - Extend `_detail` support to remaining connectors (XML, API, MongoDB) as needed.
+- `terraform apply` the IAM security changes in the dev environment.
+- Enable `restrict_egress` + `enable_interface_endpoints` for prod environments.
+- Attach `index_write_policy_arn` to a dedicated embedding pipeline role.
+- Add IAM Access Analyzer and Secrets Manager rotation schedules.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures

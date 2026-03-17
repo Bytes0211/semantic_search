@@ -154,6 +154,47 @@ class TestLoadAppConfig:
         with pytest.raises(AppConfigError, match="not in the preset registry"):
             load_app_config(tmp_path)
 
+    def test_custom_model_via_yaml_resolves_dimension(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({
+                "models": {"my-custom-model": {"dimension": 768, "backend": "sagemaker"}},
+                "embedding": {"model": "my-custom-model"},
+            })
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.embedding.dimension == 768
+        assert cfg.embedding.model == "my-custom-model"
+        assert "my-custom-model" in cfg.models
+
+    def test_custom_model_overrides_builtin(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({
+                "models": {"amazon.titan-embed-text-v1": {"dimension": 512, "backend": "bedrock"}},
+                "embedding": {"model": "amazon.titan-embed-text-v1"},
+            })
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.embedding.dimension == 512  # user override wins over built-in 1536
+
+    def test_models_registry_contains_builtins(self, tmp_path: Path) -> None:
+        cfg = load_app_config(tmp_path)
+        assert "amazon.titan-embed-text-v1" in cfg.models
+        assert "sentence-transformers/all-MiniLM-L6-v2" in cfg.models
+
+    def test_invalid_custom_model_dimension_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"models": {"my-model": {"dimension": -1}}})
+        )
+        with pytest.raises(AppConfigError, match="positive"):
+            load_app_config(tmp_path)
+
+    def test_custom_model_missing_dimension_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"models": {"my-model": {"backend": "spot"}}})
+        )
+        with pytest.raises(AppConfigError, match="missing required field"):
+            load_app_config(tmp_path)
+
     def test_invalid_embedding_dimension_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("EMBEDDING_DIMENSION", "big")
         with pytest.raises(AppConfigError, match="EMBEDDING_DIMENSION"):

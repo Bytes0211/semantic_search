@@ -74,3 +74,9 @@ variable "kinesis_shard_count" {
     error_message = "kinesis_shard_count must be at least 1."
   }
 }
+
+variable "kms_key_arn" {
+  type        = string
+  description = "ARN of a customer-managed KMS key. When non-empty, S3 buckets switch to SSE-KMS and SQS/SNS are encrypted with this key."
+  default     = ""
+}

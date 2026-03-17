@@ -41,3 +41,20 @@ output "flow_log_id" {
   description = "Identifier of the VPC flow log if enabled."
   value       = var.enable_flow_logs ? aws_flow_log.this[0].id : null
 }
+
+# ─── VPC Endpoints ───────────────────────────────────────────────────────────
+
+output "s3_endpoint_id" {
+  description = "S3 gateway VPC endpoint ID, if provisioned."
+  value       = var.enable_s3_endpoint ? aws_vpc_endpoint.s3[0].id : null
+}
+
+output "vpc_endpoint_security_group_id" {
+  description = "Security group ID attached to interface VPC endpoints."
+  value       = var.enable_interface_endpoints ? aws_security_group.vpc_endpoints[0].id : null
+}
+
+output "interface_endpoint_ids" {
+  description = "Map of interface endpoint keys to their VPC endpoint IDs."
+  value       = { for k, v in aws_vpc_endpoint.interface : k => v.id }
+}
