@@ -282,7 +282,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     store = build_pg_bedrock_index(tables, region=region, model=model)
     store.save(args.output)
-    LOGGER.info("Saved %d records to %r", len(store._vectors), args.output)
+    LOGGER.info("Saved %d records to %r", len(store), args.output)
 
     return 0
 

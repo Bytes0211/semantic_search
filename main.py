@@ -109,7 +109,7 @@ def _build_runtime(
         "Runtime initialised: backend=%s  store=%s  records=%d",
         backend,
         vector_store_path,
-        len(store._vectors),
+        len(store),
     )
     return SearchRuntime(provider, store)
 
@@ -137,8 +137,12 @@ def build_app() -> Any:
         from semantic_search.config.app import load_app_config
         from semantic_search.config.source import load_source_configs
 
-        app_config = load_app_config(config_dir)
-        source_cfgs = load_source_configs(config_dir / "sources")
+        try:
+            app_config = load_app_config(config_dir)
+            source_cfgs = load_source_configs(config_dir / "sources")
+        except Exception as exc:
+            LOGGER.critical("Failed to load configuration: %s", exc)
+            raise SystemExit(1) from exc
         if source_cfgs:
             display_configs = {
                 name: scfg.display for name, scfg in source_cfgs.items()

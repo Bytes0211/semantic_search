@@ -131,8 +131,14 @@ def build_index(
     if backend == "bedrock":
         provider_config = {"model": model, "region": extra_config.get("region", "us-east-1")}
     elif backend == "sagemaker":
+        endpoint_name = extra_config.get("endpoint_name")
+        if not endpoint_name:
+            LOGGER.critical(
+                "SageMaker backend requires 'endpoint_name' in embedding.config"
+            )
+            raise SystemExit(1)
         provider_config = {
-            "endpoint_name": extra_config.get("endpoint_name", ""),
+            "endpoint_name": endpoint_name,
             "region": extra_config.get("region", "us-east-1"),
             "dimension": dimension,
         }
@@ -305,7 +311,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     store = build_index(app_cfg, sources)
     store.save(args.output)
-    LOGGER.info("Saved %d records to %r", len(store._vectors), args.output)
+    LOGGER.info("Saved %d records to %r", len(store), args.output)
 
     return 0
 

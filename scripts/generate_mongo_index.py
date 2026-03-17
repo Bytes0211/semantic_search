@@ -303,7 +303,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         dimension=dimension,
     )
     store.save(args.output)
-    LOGGER.info("Saved %d records to %r", len(store._vectors), args.output)
+    LOGGER.info("Saved %d records to %r", len(store), args.output)
 
     return 0
 
