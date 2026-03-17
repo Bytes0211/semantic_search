@@ -226,7 +226,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-name",
-        default=DEFAULT_MODEL,
+        default=None,
         help=f"Spot model identifier reported in metadata (default: {DEFAULT_MODEL!r})",
     )
     parser.add_argument(
@@ -265,10 +265,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         app_cfg = load_app_config(Path(args.app_config))
         LOGGER.info("Loaded app config from: %s", args.app_config)
-        model_name = args.model_name if args.model_name != DEFAULT_MODEL else app_cfg.embedding.model
+        model_name = args.model_name if args.model_name is not None else app_cfg.embedding.model
         dimension = args.dimension if args.dimension is not None else app_cfg.embedding.dimension
     else:
-        model_name = args.model_name
+        model_name = args.model_name or DEFAULT_MODEL
         dimension = args.dimension if args.dimension is not None else DEFAULT_DIM
 
     if args.config:
