@@ -310,7 +310,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             try:
                 resolved_cfg = load_app_config()
-            except Exception:
+            except Exception as exc:
+                LOGGER.warning(
+                    "Could not load app config for preprocessing defaults: %s — "
+                    "falling back to built-in defaults.",
+                    exc,
+                )
                 resolved_cfg = None
         pp_cfg = resolved_cfg.preprocessing if resolved_cfg else PreprocessingConfig()
         preprocessing_pipeline = build_preprocessing_pipeline(pp_cfg)
