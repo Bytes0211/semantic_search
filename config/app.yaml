@@ -1,0 +1,37 @@
+# ── Semantic Search — Application Configuration ──────────────────────────
+#
+# This file is the primary configuration entry point.
+# Precedence: environment variable > this YAML > built-in defaults.
+#
+# Env override mapping:
+#   TIER               → tier
+#   EMBEDDING_BACKEND  → embedding.backend
+#   EMBEDDING_MODEL    → embedding.model
+#   EMBEDDING_DIMENSION→ embedding.dimension
+#   HOST / PORT        → server.host / server.port
+#   LOG_LEVEL          → server.log_level
+#   CORS_ORIGINS       → server.cors_origins
+#   SEARCH_TOP_K       → server.search_top_k
+#   ANALYTICS_ENABLED  → (backward compat: "true" → tier: premium)
+# ─────────────────────────────────────────────────────────────────────────
+
+# Client subscription tier — determines which UI features are enabled.
+#   basic    → search only
+#   standard → search + drill-down detail + metadata filters
+#   premium  → standard + analytics sidebar
+tier: standard
+
+# Embedding provider settings.
+embedding:
+  backend: spot
+  model: sentence-transformers/all-MiniLM-L6-v2
+  # dimension is auto-resolved from model presets; uncomment to override:
+  # dimension: 384
+
+# Server / runtime settings.
+server:
+  host: "0.0.0.0"
+  port: 8000
+  log_level: info
+  cors_origins: "*"
+  search_top_k: 10

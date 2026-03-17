@@ -1,0 +1,35 @@
+# ── Source: support_tickets ───────────────────────────────────────────────
+# Indexes support tickets from the semantic_search_test PostgreSQL database.
+
+connector:
+  type: sql
+  config:
+    connection_string: postgresql+psycopg2:///semantic_search_test
+    query: >-
+      SELECT id, title, body, category, priority, status
+      FROM support_tickets ORDER BY id
+
+id_field: id
+id_prefix: ticket
+text_fields:
+  - title
+  - body
+metadata_fields:
+  - title
+  - priority
+  - status
+detail_fields:
+  - body
+
+display:
+  result_card:
+    title_field: title
+    columns:
+      - field: priority
+        label: Priority
+      - field: status
+        label: Status
+  record_detail:
+    sections:
+      - field: body
+        label: Ticket Body

@@ -24,9 +24,12 @@ export default function App() {
   const debouncedQuery = useDebounce(query, 350);
 
   const { data: config } = useConfig();
+  const detailEnabled = config?.detail_enabled ?? true;
+  const filtersEnabled = config?.filters_enabled ?? true;
   const analyticsEnabled = config?.analytics_enabled ?? false;
   // Falls back to 50 until /v1/config resolves; matches the server default.
   const requestTopK = config?.search_top_k ?? 50;
+  const displayMap = config?.display;
 
   const hasFilters = Object.keys(filters).length > 0;
   const searchParams =
@@ -125,7 +128,7 @@ export default function App() {
             onChange={handleQueryChange}
             loading={isFetching}
           />
-          {(allResults.length > 0 || hasFilters) && (
+          {filtersEnabled && (allResults.length > 0 || hasFilters) && (
             <FilterPanel
               filters={filters}
               availableFields={availableFields}
@@ -183,7 +186,12 @@ export default function App() {
               <ul className="space-y-3" aria-label="Search results">
                 {pageResults.map((item, idx) => (
                   <li key={item.record_id}>
-                    <ResultCard item={item} rank={pageStart + idx + 1} />
+                    <ResultCard
+                      item={item}
+                      rank={pageStart + idx + 1}
+                      detailEnabled={detailEnabled}
+                      displayMap={displayMap}
+                    />
                   </li>
                 ))}
               </ul>

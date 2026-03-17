@@ -109,7 +109,7 @@ def _build_runtime(
         "Runtime initialised: backend=%s  store=%s  records=%d",
         backend,
         vector_store_path,
-        len(store._vectors),
+        len(store),
     )
     return SearchRuntime(provider, store)
 
@@ -117,22 +117,62 @@ def _build_runtime(
 def build_app() -> Any:
     """Construct and return the FastAPI application, configured from environment.
 
+    Loads ``config/app.yaml`` and ``config/sources/*.yaml`` when a config
+    directory is available (``CONFIG_DIR`` env var or ``./config``).  Falls
+    back to legacy env-var-only behaviour when no config directory is found,
+    ensuring backward compatibility with existing deployments.
+
     Returns:
         Configured :class:`~fastapi.FastAPI` application instance.
     """
+    from pathlib import Path
     from semantic_search.runtime.api import create_app
 
+    # -- Load configuration (YAML + env overrides) --------------------------
+    app_config = None
+    display_configs = None
+    config_dir = Path(os.environ.get("CONFIG_DIR", "./config"))
+
+    if (config_dir / "app.yaml").is_file() or (config_dir / "sources").is_dir():
+        from semantic_search.config.app import load_app_config
+        from semantic_search.config.source import load_source_configs
+
+        try:
+            app_config = load_app_config(config_dir)
+            source_cfgs = load_source_configs(config_dir / "sources")
+        except Exception as exc:
+            LOGGER.critical("Failed to load configuration: %s", exc)
+            raise SystemExit(1) from exc
+        if source_cfgs:
+            display_configs = {
+                name: scfg.display for name, scfg in source_cfgs.items()
+            }
+        LOGGER.info(
+            "Config loaded: tier=%s  backend=%s  model=%s  sources=%d",
+            app_config.tier.value,
+            app_config.embedding.backend,
+            app_config.embedding.model,
+            len(source_cfgs),
+        )
+
+    # -- Resolve runtime settings -------------------------------------------
     vector_store_path = os.environ.get("VECTOR_STORE_PATH", "")
-    backend = os.environ.get("EMBEDDING_BACKEND", "spot")
+
+    if app_config is not None:
+        backend = app_config.embedding.backend
+        cors_raw = app_config.server.cors_origins
+    else:
+        backend = os.environ.get("EMBEDDING_BACKEND", "spot")
+        cors_raw = os.environ.get(
+            "CORS_ORIGINS", "http://localhost:5173,http://localhost:4173"
+        )
+
+    cors_origins = [o.strip() for o in cors_raw.split(",") if o.strip()]
     provider_config_raw = os.environ.get("PROVIDER_CONFIG_JSON", "{}")
-    cors_origins_raw = os.environ.get(
-        "CORS_ORIGINS", "http://localhost:5173,http://localhost:4173"
-    )
-    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+
+    # Legacy scalar fallbacks (used only when app_config is None)
     analytics_enabled = os.environ.get("ANALYTICS_ENABLED", "").lower() in (
-        "true",
-        "1",
-        "yes",
+        "true", "1", "yes",
     )
     try:
         search_top_k = max(1, min(200, int(os.environ.get("SEARCH_TOP_K", "50"))))
@@ -140,6 +180,7 @@ def build_app() -> Any:
         LOGGER.warning("SEARCH_TOP_K is not a valid integer — using default of 50.")
         search_top_k = 50
 
+    # -- Build runtime (if vector store path supplied) ----------------------
     runtime = None
     if vector_store_path:
         try:
@@ -156,11 +197,14 @@ def build_app() -> Any:
             "/readyz will return 503 until app.state.runtime is set."
         )
 
+    # -- Create FastAPI app -------------------------------------------------
     app = create_app(
         runtime,
         cors_origins=cors_origins,
         analytics_enabled=analytics_enabled,
         search_top_k=search_top_k,
+        app_config=app_config,
+        display_configs=display_configs,
     )
 
     enable_ui = os.environ.get("ENABLE_UI", "").lower() in ("true", "1", "yes")
@@ -169,9 +213,6 @@ def build_app() -> Any:
         from fastapi.staticfiles import StaticFiles as _StaticFiles
         dist = pathlib.Path("frontend/dist")
         if dist.is_dir():
-            # Vite builds with absolute /assets/ paths by default, so we must
-            # expose the assets directory at the root /assets route in addition
-            # to the SPA shell at /ui.
             assets_dir = dist / "assets"
             if assets_dir.is_dir():
                 app.mount(

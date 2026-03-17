@@ -1,0 +1,37 @@
+# ── Source: products ──────────────────────────────────────────────────────
+# Indexes product records.
+#
+# Can be used with either the JSON connector (flat file) or MongoDB connector.
+# Switch connector.type and connector.config as needed.
+
+connector:
+  type: json
+  config:
+    path: ./data/sample_products.json
+
+id_field: id
+id_prefix: product
+text_fields:
+  - name
+  - description
+metadata_fields:
+  - category
+  - brand
+detail_fields:
+  - description
+  - price
+
+display:
+  result_card:
+    title_field: name
+    columns:
+      - field: category
+        label: Category
+      - field: brand
+        label: Brand
+  record_detail:
+    sections:
+      - field: description
+        label: Description
+      - field: price
+        label: Price

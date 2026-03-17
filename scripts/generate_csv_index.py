@@ -45,6 +45,7 @@ from typing import Any, Dict, List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from semantic_search.config.metadata import split_metadata
 from semantic_search.embeddings.base import EmbeddingInput
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
 
@@ -63,32 +64,6 @@ DEFAULT_DETAIL_FIELDS = "content"
 DEFAULT_OUTPUT = "./csv_spot_index"
 DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 DEFAULT_DIM = 384
-
-
-def _split_metadata(
-    flat_metadata: Dict[str, Any],
-    detail_field_names: Set[str],
-) -> Dict[str, Any]:
-    """Separate flat metadata into display fields and a nested ``_detail`` dict.
-
-    Args:
-        flat_metadata: All metadata fields returned by the connector.
-        detail_field_names: Field names that belong in the ``_detail`` block.
-
-    Returns:
-        A new metadata dict with top-level display fields and a ``_detail``
-        sub-dict containing the detail fields.
-    """
-    display: Dict[str, Any] = {}
-    detail: Dict[str, Any] = {}
-    for key, value in flat_metadata.items():
-        if key in detail_field_names:
-            detail[key] = value
-        else:
-            display[key] = value
-    if detail:
-        display["_detail"] = detail
-    return display
 
 
 def extract_inputs(
@@ -145,7 +120,7 @@ def extract_inputs(
         EmbeddingInput(
             record_id=r.record_id,
             text=r.text,
-            metadata=_split_metadata(dict(r.metadata), detail_field_set),
+            metadata=split_metadata(dict(r.metadata), detail_field_set),
         )
         for r in records
     ]
@@ -233,27 +208,27 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--csv",
-        default=DEFAULT_CSV,
+        default=None,
         help=f"Path or glob to CSV file(s) (default: {DEFAULT_CSV!r})",
     )
     parser.add_argument(
         "--text-fields",
-        default=DEFAULT_TEXT_FIELDS,
+        default=None,
         help=f"Comma-separated text columns (default: {DEFAULT_TEXT_FIELDS!r})",
     )
     parser.add_argument(
         "--id-field",
-        default=DEFAULT_ID_FIELD,
+        default=None,
         help=f"Column used as record ID (default: {DEFAULT_ID_FIELD!r})",
     )
     parser.add_argument(
         "--metadata-fields",
-        default=DEFAULT_METADATA_FIELDS,
+        default=None,
         help=f"Comma-separated metadata columns (default: {DEFAULT_METADATA_FIELDS!r})",
     )
     parser.add_argument(
         "--detail-fields",
-        default=DEFAULT_DETAIL_FIELDS,
+        default=None,
         help=(
             f"Comma-separated columns stored under _detail for drill-down display "
             f"(default: {DEFAULT_DETAIL_FIELDS!r}). "
@@ -269,14 +244,24 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-name",
-        default=DEFAULT_MODEL,
+        default=None,
         help=f"Spot model identifier reported in metadata (default: {DEFAULT_MODEL!r})",
     )
     parser.add_argument(
         "--dimension",
         type=int,
-        default=DEFAULT_DIM,
+        default=None,
         help=f"Embedding vector dimensionality (default: {DEFAULT_DIM})",
+    )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to a source YAML config file (e.g. config/sources/sample_csv.yaml)",
+    )
+    parser.add_argument(
+        "--app-config",
+        default=None,
+        help="Path to config directory containing app.yaml (e.g. ./config)",
     )
     return parser.parse_args(argv)
 
@@ -292,26 +277,87 @@ def main(argv: Optional[List[str]] = None) -> int:
     """
     args = parse_args(argv)
 
-    text_fields = [f.strip() for f in args.text_fields.split(",") if f.strip()]
-    metadata_fields = [f.strip() for f in args.metadata_fields.split(",") if f.strip()]
-    detail_fields = (
-        [f.strip() for f in args.detail_fields.split(",") if f.strip()]
-        if args.detail_fields
-        else []
+    # --- Optional YAML config loading --------------------------------------
+    src_cfg = None
+    app_cfg = None
+    if args.config:
+        import yaml
+        from semantic_search.config.source import parse_source_config
+
+        with open(args.config) as fh:
+            try:
+                raw = yaml.safe_load(fh)
+            except yaml.YAMLError as exc:
+                LOGGER.critical("Failed to parse YAML config %s: %s", args.config, exc)
+                raise SystemExit(1) from exc
+        src_cfg = parse_source_config(Path(args.config).stem, raw)
+        LOGGER.info("Loaded source config: %s", args.config)
+
+    if args.app_config:
+        from semantic_search.config.app import load_app_config
+
+        app_cfg = load_app_config(Path(args.app_config))
+        LOGGER.info("Loaded app config from: %s", args.app_config)
+
+    # --- Resolve fields: CLI > source YAML > defaults ----------------------
+    csv_path = args.csv or (
+        src_cfg.connector.config["path"]
+        if src_cfg and src_cfg.connector.config.get("path")
+        else DEFAULT_CSV
     )
-    id_field = args.id_field or None
+
+    text_fields_raw = args.text_fields or (
+        ",".join(src_cfg.text_fields) if src_cfg and src_cfg.text_fields else DEFAULT_TEXT_FIELDS
+    )
+    text_fields = [f.strip() for f in text_fields_raw.split(",") if f.strip()]
+
+    metadata_fields_raw = args.metadata_fields or (
+        ",".join(src_cfg.metadata_fields)
+        if src_cfg and src_cfg.metadata_fields
+        else DEFAULT_METADATA_FIELDS
+    )
+    metadata_fields = [f.strip() for f in metadata_fields_raw.split(",") if f.strip()]
+
+    if args.detail_fields is not None:
+        detail_fields = [f.strip() for f in args.detail_fields.split(",") if f.strip()]
+    elif src_cfg is not None:
+        detail_fields = list(src_cfg.detail_fields)  # honours explicit empty []
+    else:
+        detail_fields = [f.strip() for f in DEFAULT_DETAIL_FIELDS.split(",") if f.strip()]
+
+    id_field = (
+        args.id_field
+        or (src_cfg.id_field if src_cfg and src_cfg.id_field else DEFAULT_ID_FIELD)
+    ) or None
+
+    model_name = args.model_name or (app_cfg.embedding.model if app_cfg else DEFAULT_MODEL)
+
+    dimension = args.dimension
+    if dimension is None:
+        if app_cfg:
+            dimension = app_cfg.embedding.dimension
+        elif src_cfg is None:
+            dimension = DEFAULT_DIM
+        else:
+            from semantic_search.config.models import resolve_dimension
+
+            try:
+                dimension = resolve_dimension(model_name, None)
+            except Exception as exc:  # ModelPresetError
+                LOGGER.critical("Cannot resolve dimension for model '%s': %s", model_name, exc)
+                raise SystemExit(1) from exc
 
     store = build_csv_spot_index(
-        csv_path=args.csv,
+        csv_path=csv_path,
         text_fields=text_fields,
         id_field=id_field,
         metadata_fields=metadata_fields,
         detail_fields=detail_fields,
-        model_name=args.model_name,
-        dimension=args.dimension,
+        model_name=model_name,
+        dimension=dimension,
     )
     store.save(args.output)
-    LOGGER.info("Saved %d records to %r", len(store._vectors), args.output)
+    LOGGER.info("Saved %d records to %r", len(store), args.output)
 
     return 0
 

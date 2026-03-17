@@ -102,6 +102,10 @@ class NumpyVectorStore:
         """Return the fixed vector dimensionality of this store."""
         return self._dimension
 
+    def __len__(self) -> int:
+        """Return the number of records currently held in the store."""
+        return len(self._vectors)
+
     def add(self, records: Iterable[VectorRecord]) -> None:
         """Insert records into the store, overwriting any duplicate IDs.
 

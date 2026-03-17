@@ -280,6 +280,8 @@ def create_app(
     cors_origins: list[str] | None = None,
     analytics_enabled: bool = False,
     search_top_k: int = 50,
+    app_config: Optional[Any] = None,
+    display_configs: Optional[Dict[str, Any]] = None,
 ) -> FastAPI:
     """Configure and return the FastAPI application serving semantic search.
 
@@ -295,12 +297,42 @@ def create_app(
         analytics_enabled: When ``True``, the ``GET /v1/config`` response
             advertises that the query analytics panel is available.  Set
             via the ``ANALYTICS_ENABLED`` environment variable for the
-            Premium tier.  Defaults to ``False``.
+            Premium tier.  Defaults to ``False`` (ignored when
+            *app_config* is supplied).
         search_top_k: Maximum number of results the React UI will request
             per query.  Returned via ``GET /v1/config`` so the frontend
-            never has a hard-coded ceiling.  Set via the ``SEARCH_TOP_K``
-            environment variable.  Defaults to ``50``.
+            never has a hard-coded ceiling.  Defaults to ``50`` (ignored
+            when *app_config* is supplied).
+        app_config: Optional :class:`~semantic_search.config.app.AppConfig`
+            instance.  When supplied, tier, feature flags, and
+            ``search_top_k`` are derived from it, overriding the legacy
+            scalar parameters.
+        display_configs: Optional mapping of source name →
+            :class:`~semantic_search.config.display.DisplayConfig`.  When
+            supplied, the ``/v1/config`` response includes a ``display``
+            block keyed by source name.
     """
+    # -- Resolve effective config values ------------------------------------
+    if app_config is not None:
+        _tier = app_config.tier.value
+        _detail_enabled = app_config.detail_enabled
+        _filters_enabled = app_config.filters_enabled
+        _analytics_enabled = app_config.analytics_enabled
+        _search_top_k = app_config.server.search_top_k
+    else:
+        _tier = "premium" if analytics_enabled else "standard"
+        _detail_enabled = True
+        _filters_enabled = True
+        _analytics_enabled = analytics_enabled
+        _search_top_k = search_top_k
+
+    _display_map: Dict[str, Any] = {}
+    if display_configs:
+        for source_name, dcfg in display_configs.items():
+            _display_map[source_name] = (
+                dcfg.to_dict() if hasattr(dcfg, "to_dict") else dcfg
+            )
+
     app = FastAPI(
         title="Semantic Search Runtime",
         version="0.1.0",
@@ -355,19 +387,23 @@ def create_app(
 
     @app.get("/v1/config", summary="Frontend feature configuration.")
     def config_endpoint() -> Dict[str, Any]:
-        """Return feature flags consumed by the React web UI.
+        """Return tier, feature flags, and display configuration.
 
-        ``analytics_enabled`` controls the Premium-tier analytics panel.
-        ``search_top_k`` tells the frontend how many results to request per
-        query; the UI uses it instead of a hard-coded constant so the value
-        can be tuned per environment without a frontend rebuild.
-        Both values are set at startup via environment variables and do not
-        change during the lifetime of the process.
+        The response drives the React web UI — which columns to render,
+        whether drill-down and analytics are enabled, and how many results
+        to request per query.  Values are set at startup and do not change
+        during the lifetime of the process.
         """
-        return {
-            "analytics_enabled": analytics_enabled,
-            "search_top_k": search_top_k,
+        payload: Dict[str, Any] = {
+            "tier": _tier,
+            "detail_enabled": _detail_enabled,
+            "filters_enabled": _filters_enabled,
+            "analytics_enabled": _analytics_enabled,
+            "search_top_k": _search_top_k,
         }
+        if _display_map:
+            payload["display"] = _display_map
+        return payload
 
     return app
 

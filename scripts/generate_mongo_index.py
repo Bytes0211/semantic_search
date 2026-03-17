@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from semantic_search.config.metadata import split_metadata
 from semantic_search.embeddings.base import EmbeddingInput
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
 
@@ -67,32 +68,6 @@ COLLECTION_CONFIGS: Dict[str, Dict[str, Any]] = {
         "id_prefix": "article",
     },
 }
-
-
-def _split_metadata(
-    flat_metadata: Dict[str, Any],
-    detail_field_names: Set[str],
-) -> Dict[str, Any]:
-    """Separate flat metadata into display fields and a nested ``_detail`` dict.
-
-    Args:
-        flat_metadata: All metadata fields returned by the connector.
-        detail_field_names: Field names that belong in the ``_detail`` block.
-
-    Returns:
-        A new metadata dict with top-level display fields and a ``_detail``
-        sub-dict containing the detail fields.
-    """
-    display: Dict[str, Any] = {}
-    detail: Dict[str, Any] = {}
-    for key, value in flat_metadata.items():
-        if key in detail_field_names:
-            detail[key] = value
-        else:
-            display[key] = value
-    if detail:
-        display["_detail"] = detail
-    return display
 
 
 def extract_inputs(
@@ -147,7 +122,7 @@ def extract_inputs(
             record_id=f"{prefix}-{r.record_id}",
             text=r.text,
             metadata={
-                **_split_metadata(dict(r.metadata), detail_field_set),
+                **split_metadata(dict(r.metadata), detail_field_set),
                 "source_collection": collection,
             },
         )
@@ -251,14 +226,24 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-name",
-        default=DEFAULT_MODEL,
+        default=None,
         help=f"Spot model identifier reported in metadata (default: {DEFAULT_MODEL!r})",
     )
     parser.add_argument(
         "--dimension",
         type=int,
-        default=DEFAULT_DIM,
+        default=None,
         help=f"Embedding vector dimensionality (default: {DEFAULT_DIM})",
+    )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to a source YAML config file (e.g. config/sources/products.yaml)",
+    )
+    parser.add_argument(
+        "--app-config",
+        default=None,
+        help="Path to config directory containing app.yaml (e.g. ./config)",
     )
     return parser.parse_args(argv)
 
@@ -273,6 +258,40 @@ def main(argv: Optional[List[str]] = None) -> int:
         Exit code (0 on success, 1 on error).
     """
     args = parse_args(argv)
+
+    # --- Optional YAML config loading --------------------------------------
+    if args.app_config:
+        from semantic_search.config.app import load_app_config
+
+        app_cfg = load_app_config(Path(args.app_config))
+        LOGGER.info("Loaded app config from: %s", args.app_config)
+        model_name = args.model_name if args.model_name is not None else app_cfg.embedding.model
+        dimension = args.dimension if args.dimension is not None else app_cfg.embedding.dimension
+    else:
+        model_name = args.model_name or DEFAULT_MODEL
+        dimension = args.dimension if args.dimension is not None else DEFAULT_DIM
+
+    if args.config:
+        import yaml
+        from semantic_search.config.source import parse_source_config
+
+        with open(args.config) as fh:
+            try:
+                raw = yaml.safe_load(fh)
+            except yaml.YAMLError as exc:
+                LOGGER.critical("Failed to parse YAML config %s: %s", args.config, exc)
+                raise SystemExit(1) from exc
+        src_cfg = parse_source_config(Path(args.config).stem, raw)
+        LOGGER.info("Loaded source config: %s", args.config)
+        coll_name = src_cfg.connector.config.get("collection", src_cfg.name)
+        COLLECTION_CONFIGS[coll_name] = {
+            "text_fields": src_cfg.text_fields,
+            "id_field": src_cfg.id_field or "id",
+            "metadata_fields": src_cfg.metadata_fields,
+            "detail_fields": src_cfg.detail_fields,
+            "id_prefix": src_cfg.id_prefix or coll_name,
+        }
+
     collections = (
         [args.collection] if args.collection else list(COLLECTION_CONFIGS.keys())
     )
@@ -280,11 +299,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     store = build_mongo_spot_index(
         uri=args.uri,
         collections=collections,
-        model_name=args.model_name,
-        dimension=args.dimension,
+        model_name=model_name,
+        dimension=dimension,
     )
     store.save(args.output)
-    LOGGER.info("Saved %d records to %r", len(store._vectors), args.output)
+    LOGGER.info("Saved %d records to %r", len(store), args.output)
 
     return 0
 
