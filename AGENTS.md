@@ -253,12 +253,22 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Updated `developer/guides/data-and-testing-guide.md` with config-driven workflow, YAML reference, and unified builder documentation.
 - ✅ Test suite: 261 passing (up from 210) — 51 new config tests, 0 regressions.
 
-### Next Steps
-- Wire `PreprocessingPipeline` into `generate_csv_index.py` and `generate_pg_index.py` so records are cleaned and chunked before embedding.
-- Build a FAISS index and upload to `s3://semantic-search-dev-faiss-index/vector_store/current/` to enable `/readyz → 200` and activate `/v1/search`.
-- Update the ECS task definition to set `VECTOR_STORE_PATH` pointing at the S3 prefix after index upload.
-- Run the relevance evaluation suite (`semantic-search-eval`) and Locust load tests against the live ALB endpoint once an index is loaded.
-- Update `Dockerfile` to include a frontend build step (or separate build artifact) for single-container production mode.
+### Phase 7 — Preprocessing Integration & Live Search Activation
+- ✅ Added `PreprocessingConfig` dataclass to `semantic_search/config/app.py` with `enabled`, `clean`, `chunk`, `chunk_size`, `overlap` fields and full env-var override support (`PREPROCESSING_*`).
+- ✅ Added `build_preprocessing_pipeline(cfg)` factory function to `semantic_search/config/app.py` — constructs a `PreprocessingPipeline` from config; returns `None` when preprocessing is a no-op (disabled or neither clean nor chunk enabled).
+- ✅ Exported `PreprocessingConfig` and `build_preprocessing_pipeline` from `semantic_search/config/__init__.py`.
+- ✅ Wired `PreprocessingPipeline` into all five generate scripts (`generate_index.py`, `generate_csv_index.py`, `generate_pg_index.py`, `generate_json_index.py`, `generate_mongo_index.py`) — pipeline applied after connector extraction and before EmbeddingInput construction; `--no-preprocessing` flag bypasses it.
+- ✅ Added `preprocessing:` block to `config/app.yaml` (enabled=true, clean=true, chunk=false, chunk_size=512, overlap=64) and updated `config/README.md` with schema reference and env var mapping.
+- ✅ Updated `Dockerfile` with a Node 20 multi-stage frontend build: `frontend-builder` stage runs `npm ci && npm run build`; `frontend/dist/` is copied into the runtime image so `ENABLE_UI=true` works without separate build infrastructure.
+- ✅ Updated `main.py` to mount the React SPA at `/` (root) when `ENABLE_UI=true`, enabling single-container production mode at `http://<host>/`.
+- ✅ Authored `developer/runbooks/index_build.md` — index build commands (all three backends), S3 upload, ECS task activation, `/readyz` polling, validation suite and Locust runs, rollback procedure.
+- ✅ Added 7 new `TestLoadAppConfig` tests and `TestBuildPreprocessingPipeline` class (8 tests) to `tests/config/test_app.py`.
+- ✅ Created `tests/preprocessing/test_pipeline_wiring.py` — 24 new tests covering CSV extract_inputs wiring, unified builder `extract_from_source` wiring, `--no-preprocessing` CLI parsing, and `PreprocessingConfig`-to-pipeline integration.
+- ✅ Test suite: **292 passing** (up from 268) — 24 new wiring tests + 7 config tests, 0 regressions.
+
+**Remaining (infrastructure, deferred):**
+- Build and upload FAISS index to S3 → confirm `/readyz → 200` (requires live AWS credentials).
+- Run `semantic-search-eval` and Locust against the live ALB endpoint with a real index.
 - Add pgvector and Qdrant vector store adapters (currently only `NumpyVectorStore` is implemented).
 - Extend `_detail` support to remaining connectors (XML, API, MongoDB) as needed.
 

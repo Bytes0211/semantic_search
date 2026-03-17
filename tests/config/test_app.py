@@ -11,9 +11,11 @@ from semantic_search.config.app import (
     AppConfig,
     AppConfigError,
     EmbeddingConfig,
+    PreprocessingConfig,
     ServerConfig,
     Tier,
     TIER_FEATURES,
+    build_preprocessing_pipeline,
     load_app_config,
 )
 
@@ -156,3 +158,123 @@ class TestLoadAppConfig:
         monkeypatch.setenv("EMBEDDING_DIMENSION", "big")
         with pytest.raises(AppConfigError, match="EMBEDDING_DIMENSION"):
             load_app_config(tmp_path)
+
+    def test_preprocessing_defaults(self, tmp_path: Path) -> None:
+        cfg = load_app_config(tmp_path)
+        assert cfg.preprocessing.enabled is True
+        assert cfg.preprocessing.clean is True
+        assert cfg.preprocessing.chunk is False
+        assert cfg.preprocessing.chunk_size == 512
+        assert cfg.preprocessing.overlap == 64
+
+    def test_preprocessing_from_yaml(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({
+                "preprocessing": {
+                    "enabled": True,
+                    "clean": False,
+                    "chunk": True,
+                    "chunk_size": 256,
+                    "overlap": 32,
+                }
+            })
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.preprocessing.clean is False
+        assert cfg.preprocessing.chunk is True
+        assert cfg.preprocessing.chunk_size == 256
+        assert cfg.preprocessing.overlap == 32
+
+    def test_preprocessing_disabled_via_yaml(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"preprocessing": {"enabled": False}})
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.preprocessing.enabled is False
+
+    def test_preprocessing_env_overrides(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PREPROCESSING_ENABLED", "false")
+        monkeypatch.setenv("PREPROCESSING_CHUNK", "true")
+        monkeypatch.setenv("PREPROCESSING_CHUNK_SIZE", "1024")
+        monkeypatch.setenv("PREPROCESSING_OVERLAP", "128")
+        cfg = load_app_config(tmp_path)
+        assert cfg.preprocessing.enabled is False
+        assert cfg.preprocessing.chunk is True
+        assert cfg.preprocessing.chunk_size == 1024
+        assert cfg.preprocessing.overlap == 128
+
+    def test_preprocessing_invalid_chunk_size_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PREPROCESSING_CHUNK_SIZE", "big")
+        with pytest.raises(AppConfigError, match="PREPROCESSING_CHUNK_SIZE"):
+            load_app_config(tmp_path)
+
+    def test_preprocessing_overlap_gte_chunk_size_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"preprocessing": {"chunk": True, "chunk_size": 100, "overlap": 100}})
+        )
+        with pytest.raises(AppConfigError, match="overlap"):
+            load_app_config(tmp_path)
+
+    def test_preprocessing_overlap_gte_chunk_size_allowed_when_chunk_disabled(
+        self, tmp_path: Path
+    ) -> None:
+        """overlap >= chunk_size is permitted when chunking is disabled."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"preprocessing": {"chunk": False, "chunk_size": 100, "overlap": 100}})
+        )
+        cfg = load_app_config(tmp_path)  # must not raise
+        assert cfg.preprocessing.chunk is False
+        assert cfg.preprocessing.overlap == 100
+
+
+class TestBuildPreprocessingPipeline:
+    """Verify build_preprocessing_pipeline constructs pipelines correctly."""
+
+    def test_disabled_returns_none(self) -> None:
+        cfg = PreprocessingConfig(enabled=False)
+        assert build_preprocessing_pipeline(cfg) is None
+
+    def test_clean_only_returns_pipeline(self) -> None:
+        from semantic_search.preprocessing import PreprocessingPipeline
+
+        cfg = PreprocessingConfig(enabled=True, clean=True, chunk=False)
+        pipeline = build_preprocessing_pipeline(cfg)
+        assert isinstance(pipeline, PreprocessingPipeline)
+
+    def test_neither_clean_nor_chunk_returns_none(self) -> None:
+        cfg = PreprocessingConfig(enabled=True, clean=False, chunk=False)
+        assert build_preprocessing_pipeline(cfg) is None
+
+    def test_chunk_enabled_returns_pipeline(self) -> None:
+        from semantic_search.preprocessing import PreprocessingPipeline
+
+        cfg = PreprocessingConfig(enabled=True, clean=False, chunk=True, chunk_size=100, overlap=10)
+        pipeline = build_preprocessing_pipeline(cfg)
+        assert isinstance(pipeline, PreprocessingPipeline)
+
+    def test_pipeline_cleans_html(self) -> None:
+        from semantic_search.ingestion.base import Record
+
+        cfg = PreprocessingConfig(enabled=True, clean=True, chunk=False)
+        pipeline = build_preprocessing_pipeline(cfg)
+        assert pipeline is not None
+        records = [Record("r1", "<p>Hello   World</p>", {}, "test")]
+        result = list(pipeline.process(records))
+        assert len(result) == 1
+        assert result[0].text == "Hello World"
+
+    def test_pipeline_chunks_long_text(self) -> None:
+        from semantic_search.ingestion.base import Record
+
+        cfg = PreprocessingConfig(
+            enabled=True, clean=False, chunk=True, chunk_size=20, overlap=0
+        )
+        pipeline = build_preprocessing_pipeline(cfg)
+        assert pipeline is not None
+        long_text = "word " * 20  # 100 chars > chunk_size=20
+        records = [Record("r1", long_text.strip(), {}, "test")]
+        result = list(pipeline.process(records))
+        assert len(result) > 1
+        assert all(r.record_id.startswith("r1#chunk-") for r in result)

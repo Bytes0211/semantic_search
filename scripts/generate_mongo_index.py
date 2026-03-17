@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from semantic_search.config.app import PreprocessingConfig, build_preprocessing_pipeline
 from semantic_search.config.metadata import split_metadata
 from semantic_search.embeddings.base import EmbeddingInput
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
@@ -74,6 +75,7 @@ def extract_inputs(
     uri: str,
     collection: str,
     config: Dict[str, Any],
+    preprocessing_pipeline: Optional[Any] = None,
 ) -> List[EmbeddingInput]:
     """Extract records from a MongoDB collection and convert to EmbeddingInputs.
 
@@ -82,6 +84,8 @@ def extract_inputs(
         collection: Collection name within the ``semantic_search_test`` database.
         config: Collection configuration dict containing text_fields, id_field,
             metadata_fields, detail_fields, and id_prefix keys.
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.
 
     Returns:
         List of EmbeddingInput objects ready for the embedding pipeline.
@@ -116,6 +120,10 @@ def extract_inputs(
         LOGGER.critical("Failed to extract from %s: %s", collection, exc)
         raise SystemExit(1) from exc
 
+    if preprocessing_pipeline is not None:
+        records = list(preprocessing_pipeline.process(records))
+        LOGGER.info("  After preprocessing: %d records", len(records))
+
     prefix = config["id_prefix"]
     inputs = [
         EmbeddingInput(
@@ -137,6 +145,7 @@ def build_mongo_spot_index(
     collections: List[str],
     model_name: str = DEFAULT_MODEL,
     dimension: int = DEFAULT_DIM,
+    preprocessing_pipeline: Optional[Any] = None,
 ) -> NumpyVectorStore:
     """Extract records from MongoDB collections and embed them via Spot.
 
@@ -146,6 +155,8 @@ def build_mongo_spot_index(
             COLLECTION_CONFIGS).
         model_name: Logical model identifier reported in result metadata.
         dimension: Embedding vector dimensionality (must match the model).
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.
 
     Returns:
         A populated NumpyVectorStore with embedded vectors.
@@ -171,7 +182,7 @@ def build_mongo_spot_index(
 
     all_inputs: List[EmbeddingInput] = []
     for coll in collections:
-        all_inputs.extend(extract_inputs(uri, coll, COLLECTION_CONFIGS[coll]))
+        all_inputs.extend(extract_inputs(uri, coll, COLLECTION_CONFIGS[coll], preprocessing_pipeline))
 
     if not all_inputs:
         LOGGER.critical("No records extracted — nothing to embed.")
@@ -245,6 +256,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=None,
         help="Path to config directory containing app.yaml (e.g. ./config)",
     )
+    parser.add_argument(
+        "--no-preprocessing",
+        action="store_true",
+        default=False,
+        help="Disable all preprocessing (cleaning and chunking) regardless of config.",
+    )
     return parser.parse_args(argv)
 
 
@@ -296,11 +313,37 @@ def main(argv: Optional[List[str]] = None) -> int:
         [args.collection] if args.collection else list(COLLECTION_CONFIGS.keys())
     )
 
+    # Build preprocessing pipeline (CLI flag > app config > env vars > built-in defaults)
+    preprocessing_pipeline = None
+    if not args.no_preprocessing:
+        from semantic_search.config.app import load_app_config
+        if args.app_config:
+            # Already loaded above; reuse rather than loading a second time.
+            resolved_cfg = app_cfg
+        else:
+            try:
+                resolved_cfg = load_app_config()
+            except Exception as exc:
+                LOGGER.warning(
+                    "Could not load app config for preprocessing defaults: %s — "
+                    "falling back to built-in defaults.",
+                    exc,
+                )
+                resolved_cfg = None
+        pp_cfg = resolved_cfg.preprocessing if resolved_cfg else PreprocessingConfig()
+        preprocessing_pipeline = build_preprocessing_pipeline(pp_cfg)
+        if preprocessing_pipeline is not None:
+            LOGGER.info(
+                "Preprocessing enabled: clean=%s  chunk=%s  chunk_size=%d  overlap=%d",
+                pp_cfg.clean, pp_cfg.chunk, pp_cfg.chunk_size, pp_cfg.overlap,
+            )
+
     store = build_mongo_spot_index(
         uri=args.uri,
         collections=collections,
         model_name=model_name,
         dimension=dimension,
+        preprocessing_pipeline=preprocessing_pipeline,
     )
     store.save(args.output)
     LOGGER.info("Saved %d records to %r", len(store), args.output)

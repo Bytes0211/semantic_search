@@ -13,6 +13,11 @@
 #   CORS_ORIGINS       → server.cors_origins
 #   SEARCH_TOP_K       → server.search_top_k
 #   ANALYTICS_ENABLED  → (backward compat: "true" → tier: premium)
+#   PREPROCESSING_ENABLED   → preprocessing.enabled
+#   PREPROCESSING_CLEAN     → preprocessing.clean
+#   PREPROCESSING_CHUNK     → preprocessing.chunk
+#   PREPROCESSING_CHUNK_SIZE→ preprocessing.chunk_size
+#   PREPROCESSING_OVERLAP   → preprocessing.overlap
 # ─────────────────────────────────────────────────────────────────────────
 
 # Client subscription tier — determines which UI features are enabled.
@@ -35,3 +40,14 @@ server:
   log_level: info
   cors_origins: "*"
   search_top_k: 10
+
+# Text preprocessing applied between ingestion and embedding.
+# Cleaning normalises whitespace, strips HTML, and applies Unicode NFKC.
+# Chunking splits long records at word boundaries (disabled by default —
+# enable only after reviewing the cost impact on your embedding provider).
+preprocessing:
+  enabled: true
+  clean: true
+  chunk: false
+  chunk_size: 512
+  overlap: 64

@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
-![Tests](https://img.shields.io/badge/tests-261_passing-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-292_passing-brightgreen?logo=pytest&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111%2B-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
@@ -16,6 +16,20 @@ A semantic search system that uses LLM-powered embeddings and vector search to e
 ## Problem
 
 Organizations store valuable information across databases, CRMs, spreadsheets, and legacy systems but rely on keyword-only search that fails to surface relevant insights. This leads to poor search accuracy, slow manual review, and missed connections across data sources.
+
+Keyword search typically retrieives <40% of relevant documents in enterprise datasets.
+
+## Comparison Table: Keyword Search vs. Semantic Search
+
+| Aspect | Keyword Search (Fails) | Semantic Search (Succeeds) |
+|-------|-------------------------|-----------------------------|
+| **User Query** | “How do I get reimbursed for conference travel?” | Same query |
+| **Matching Method** | Literal word matching | Meaning, intent, and conceptual similarity |
+| **What It Looks For** | Exact tokens: *reimbursed*, *conference*, *travel* | Concepts: *expense claims*, *business trip*, *reimbursement workflow* |
+| **Returned Results** | - “Travel Restrictions and Approval Workflow”<br>- “Corporate Card Usage Guidelines”<br>- “Conference Attendance Policy” | - “Expense Claim Submission Process”<br>- “Travel & Expense Policy”<br>- “Guide: Uploading Receipts to Finance Portal” |
+| **Why It Fails/Succeeds** | Misses relevant docs because the policy uses different wording (e.g., *expense claim* instead of *reimbursement*) | Understands that *reimbursement* ≈ *expense claim* and *conference travel* ≈ *business trip* |
+| **Impact on User** | Slow, frustrating, incomplete answers | Fast, accurate retrieval of the correct workflow |
+| **Enterprise Pain Point Exposed** | Policies, CRM notes, and spreadsheets use inconsistent terminology | Embeddings unify meaning across heterogeneous data sources |
 
 ## Key Features
 
@@ -55,6 +69,7 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 6 — Web UI:** Complete. React 18 + TypeScript SPA in `frontend/` with SearchBar, ResultCard, FilterPanel, Pagination, AnalyticsPanel, and hooks (useSearch, useConfig, useAnalytics, useDebounce). Tier-gated analytics panel via `GET /v1/config`. 15 component tests (Vitest + RTL). Production build in `frontend/dist/`.
 - **feature/data-abstraction — Data Abstraction & Preprocessing:** Complete. Six pluggable connectors (`ingestion/` package: CSV, SQL, JSON/JSONL, XML, REST API, MongoDB), text preprocessing pipeline (`preprocessing/` package: TextCleaner, TextChunker, PreprocessingPipeline), sample dataset (`data/sample.csv`), index generation scripts (`scripts/generate_csv_index.py`, `scripts/generate_pg_index.py`), three validation runner scripts (`test_spot_csv_server.sh`, `test_bedrock_json_server.sh`, `test_bedrock_pg_server.sh`), functional process flow doc, and 9 PR review fixes applied. Test suite: 208 passing.
 - **feature/config_enhancements — Configuration Externalization:** Complete. YAML-driven configuration system (`semantic_search/config/` package) with `config/app.yaml` for tier/embedding/server settings and `config/sources/*.yaml` for per-source connector + display configuration. Three-tier feature matrix (Basic/Standard/Premium), model presets with auto-dimension resolution, unified `scripts/generate_index.py`, `--config`/`--app-config` flags on all generate scripts, extended `/v1/config` endpoint, config-driven frontend rendering, and full backward compatibility. Test suite: 261 passing (51 new config tests).
+- **Phase 7 — Preprocessing Integration & Live Search Activation:** Complete. `PreprocessingConfig` dataclass and `build_preprocessing_pipeline()` factory added to `semantic_search/config/app.py` with full `PREPROCESSING_*` env-var override support; `PreprocessingPipeline` wired into all five generate scripts (applied after connector extraction, before embedding); `--no-preprocessing` flag on every script. `Dockerfile` upgraded to a 3-stage multi-stage build (Node 20 frontend builder + Python builder + slim runtime) so `ENABLE_UI=true` serves the React SPA at `/` in a single container. Index build runbook added (`developer/runbooks/index_build.md`). Test suite: 292 passing (24 new wiring tests + 7 config tests).
 
 ## Live Environment (dev)
 
@@ -66,6 +81,63 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 | FAISS index bucket | `s3://<project>-dev-faiss-index/vector_store/current/` |
 
 > `/readyz` returns 503 until a FAISS index is uploaded to the bucket above and `VECTOR_STORE_PATH` is set in the task definition.
+
+## Uploading a FAISS Index to S3
+
+The runtime loads its vector index from a local directory path (`VECTOR_STORE_PATH`). For ECS/Fargate deployments the index must first be uploaded to S3, then that S3 path must be referenced when the container starts.
+
+The index consists of exactly two files produced by `NumpyVectorStore.save()`:
+- `vectors.npy` — float32 matrix of all record vectors
+- `metadata.json` — record IDs, metadata, dimension, and metric
+
+### Step 1 — Build the index locally
+
+```bash
+# Config-driven (all sources in config/sources/)
+uv run python scripts/generate_index.py --output ./my_index
+
+# Or for a single CSV source
+uv run python scripts/generate_csv_index.py --output ./my_index
+```
+
+### Step 2 — Upload to S3
+
+```bash
+BUCKET=<project>-dev-faiss-index
+PREFIX=vector_store/current
+
+aws s3 cp ./my_index/vectors.npy  s3://$BUCKET/$PREFIX/vectors.npy
+aws s3 cp ./my_index/metadata.json s3://$BUCKET/$PREFIX/metadata.json
+```
+
+Verify the upload:
+
+```bash
+aws s3 ls s3://$BUCKET/$PREFIX/
+# Should show vectors.npy and metadata.json
+```
+
+### Step 3 — Point the runtime at the index
+
+The runtime expects a **local** path. For ECS/Fargate, add an entrypoint script or an init container that syncs from S3 before the server starts:
+
+```bash
+# In your container entrypoint / task startup script
+aws s3 sync s3://$BUCKET/$PREFIX /opt/index
+export VECTOR_STORE_PATH=/opt/index
+uv run python main.py
+```
+
+Alternatively, set `VECTOR_STORE_PATH` to the S3 URI directly only if your deployment wraps `main.py` with an S3-download step (see `developer/runbooks/runtime_deploy.md`).
+
+### Step 4 — Confirm readiness
+
+```bash
+curl http://<alb-dns-name>.us-east-1.elb.amazonaws.com/readyz
+# {"status": "ready"}  ← 200 once the index is loaded
+```
+
+> **Automatic S3 backup:** If you pass `s3_bucket` and `s3_prefix` to `EmbeddingPipeline`, the pipeline uploads the index automatically after each build using a two-phase staged upload (timestamped prefix + `latest` pointer). See `semantic_search/pipeline/embedding_pipeline.py` for details.
 
 ## Tech Stack
 
@@ -140,9 +212,11 @@ cd frontend && npm install && npm run dev
 │   ├── runtime/             # FastAPI search service, CLI tooling
 │   └── vectorstores/        # NumpyVectorStore (L2, cosine, inner-product)
 ├── scripts/
-│   ├── generate_index.py       # Unified config-driven multi-source index builder
-│   ├── generate_csv_index.py   # Build NumpyVectorStore from CSV via Spot embeddings
-│   └── generate_pg_index.py    # Build NumpyVectorStore from PostgreSQL via Spot embeddings
+│   ├── generate_index.py          # Unified config-driven multi-source index builder
+│   ├── generate_csv_index.py      # Build NumpyVectorStore from CSV via Spot embeddings
+│   ├── generate_pg_index.py       # Build NumpyVectorStore from PostgreSQL via Spot embeddings
+│   ├── generate_json_index.py     # Build NumpyVectorStore from JSON/JSONL via Spot embeddings
+│   └── generate_mongo_index.py    # Build NumpyVectorStore from MongoDB via Spot embeddings
 ├── tests/
 │   ├── config/              # Configuration loader and model preset tests
 │   ├── embeddings/          # Unit tests for all embedding providers
@@ -197,6 +271,7 @@ Infrastructure is managed through Terraform variables:
 - [Process Flow & Configuration Toggles](developer/process-flow.md)
 - [Container Build & Deployment](developer/container_pipeline.md)
 - [Runtime Deployment Runbook](developer/runbooks/runtime_deploy.md)
+- [Index Build Runbook](developer/runbooks/index_build.md)
 - [Data Deployment & Testing Guide](developer/guides/data_and_testing_guide.md)
 - [Configuration Reference](config/README.md)
 - [Cost Optimisation Guide](docs/cost_optimisation.md)

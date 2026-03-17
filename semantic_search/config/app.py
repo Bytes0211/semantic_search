@@ -1,4 +1,4 @@
-"""Application-level configuration — tier, embedding, server settings.
+"""Application-level configuration — tier, embedding, server, and preprocessing settings.
 
 Reads ``config/app.yaml`` (or a path provided via the ``CONFIG_DIR``
 environment variable) and merges it with environment-variable overrides.
@@ -65,6 +65,41 @@ class AppConfigError(ValueError):
 
 
 # ---------------------------------------------------------------------------
+# Preprocessing sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class PreprocessingConfig:
+    """Text preprocessing settings applied between ingestion and embedding.
+
+    Controls the :class:`~semantic_search.preprocessing.PreprocessingPipeline`
+    that cleans and optionally chunks records before they reach the embedding
+    provider.  Chunking is disabled by default to avoid unexpected cost
+    increases from inflating record counts.
+
+    Attributes:
+        enabled: When ``False`` the pipeline is a pass-through (no cleaning or
+            chunking).  Defaults to ``True``.
+        clean: Apply :class:`~semantic_search.preprocessing.TextCleaner`
+            (HTML stripping, Unicode normalisation, whitespace collapsing).
+            Defaults to ``True``.
+        chunk: Apply :class:`~semantic_search.preprocessing.TextChunker` to
+            split long records.  Defaults to ``False``.
+        chunk_size: Maximum character length per chunk.  Only used when
+            ``chunk`` is ``True``.  Defaults to ``512``.
+        overlap: Overlap in characters between consecutive chunks.  Only used
+            when ``chunk`` is ``True``.  Defaults to ``64``.
+    """
+
+    enabled: bool = True
+    clean: bool = True
+    chunk: bool = False
+    chunk_size: int = 512
+    overlap: int = 64
+
+
+# ---------------------------------------------------------------------------
 # Embedding sub-config
 # ---------------------------------------------------------------------------
 
@@ -123,6 +158,7 @@ class AppConfig:
         tier: Client subscription tier.
         embedding: Embedding provider configuration.
         server: Server / runtime configuration.
+        preprocessing: Text preprocessing configuration.
         detail_enabled: Whether drill-down detail is active.
         filters_enabled: Whether metadata filters are active.
         analytics_enabled: Whether the analytics sidebar is active.
@@ -131,6 +167,7 @@ class AppConfig:
     tier: Tier = Tier.STANDARD
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
+    preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
     detail_enabled: bool = True
     filters_enabled: bool = True
     analytics_enabled: bool = False
@@ -147,6 +184,46 @@ class AppConfig:
             "filters_enabled": self.filters_enabled,
             "analytics_enabled": self.analytics_enabled,
         }
+
+
+# ---------------------------------------------------------------------------
+# Pipeline factory
+# ---------------------------------------------------------------------------
+
+
+def build_preprocessing_pipeline(cfg: PreprocessingConfig) -> Optional[Any]:
+    """Construct a :class:`~semantic_search.preprocessing.PreprocessingPipeline`.
+
+    Returns ``None`` when preprocessing is disabled or when neither cleaning
+    nor chunking are enabled, so callers can skip the pipeline entirely with
+    a simple ``if pipeline is not None:`` check.
+
+    Args:
+        cfg: Resolved :class:`PreprocessingConfig`.
+
+    Returns:
+        A configured pipeline, or ``None`` when preprocessing is a no-op.
+    """
+    if not cfg.enabled:
+        return None
+
+    # Lazy import avoids a hard dependency between the config and preprocessing
+    # packages at module load time.
+    from semantic_search.preprocessing import (  # noqa: PLC0415
+        PreprocessingPipeline,
+        TextCleaner,
+        TextChunker,
+    )
+
+    cleaner = TextCleaner() if cfg.clean else None
+    chunker = (
+        TextChunker(chunk_size=cfg.chunk_size, overlap=cfg.overlap)
+        if cfg.chunk
+        else None
+    )
+    if cleaner is None and chunker is None:
+        return None
+    return PreprocessingPipeline(cleaner=cleaner, chunker=chunker)
 
 
 # ---------------------------------------------------------------------------
@@ -197,10 +274,13 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
         if env_val is not None:
             flags[key] = env_val.lower() in ("true", "1", "yes")
 
+    preprocessing = _resolve_preprocessing(raw)
+
     return AppConfig(
         tier=tier,
         embedding=embedding,
         server=server,
+        preprocessing=preprocessing,
         **flags,
     )
 
@@ -208,6 +288,70 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _resolve_preprocessing(raw: Dict[str, Any]) -> PreprocessingConfig:
+    """Resolve preprocessing settings from env overrides merged with YAML.
+
+    Env override mapping:
+
+    * ``PREPROCESSING_ENABLED`` — ``"true"``/``"false"``
+    * ``PREPROCESSING_CLEAN``   — ``"true"``/``"false"``
+    * ``PREPROCESSING_CHUNK``   — ``"true"``/``"false"``
+    * ``PREPROCESSING_CHUNK_SIZE`` — integer
+    * ``PREPROCESSING_OVERLAP``    — integer
+
+    Args:
+        raw: Parsed app YAML.
+
+    Returns:
+        A resolved :class:`PreprocessingConfig`.
+
+    Raises:
+        AppConfigError: If chunk_size or overlap cannot be parsed as integers.
+    """
+    pp_raw = raw.get("preprocessing") or {}
+
+    def _bool_env(env_key: str, yaml_key: str, default: bool) -> bool:
+        val = os.environ.get(env_key)
+        if val is not None:
+            return val.lower() in ("true", "1", "yes")
+        return bool(pp_raw.get(yaml_key, default))
+
+    enabled = _bool_env("PREPROCESSING_ENABLED", "enabled", True)
+    clean = _bool_env("PREPROCESSING_CLEAN", "clean", True)
+    chunk = _bool_env("PREPROCESSING_CHUNK", "chunk", False)
+
+    chunk_size = _parse_int(
+        os.environ.get("PREPROCESSING_CHUNK_SIZE") or pp_raw.get("chunk_size", 512),
+        "PREPROCESSING_CHUNK_SIZE / preprocessing.chunk_size",
+    )
+    overlap = _parse_int(
+        os.environ.get("PREPROCESSING_OVERLAP") or pp_raw.get("overlap", 64),
+        "PREPROCESSING_OVERLAP / preprocessing.overlap",
+    )
+
+    if chunk_size <= 0:
+        raise AppConfigError(
+            f"preprocessing.chunk_size must be a positive integer, got {chunk_size}."
+        )
+    if overlap < 0:
+        raise AppConfigError(
+            f"preprocessing.overlap must be non-negative, got {overlap}."
+        )
+    if chunk and overlap >= chunk_size:
+        raise AppConfigError(
+            f"preprocessing.overlap ({overlap}) must be less than "
+            f"preprocessing.chunk_size ({chunk_size})."
+        )
+
+    return PreprocessingConfig(
+        enabled=enabled,
+        clean=clean,
+        chunk=chunk,
+        chunk_size=chunk_size,
+        overlap=overlap,
+    )
 
 
 def _parse_int(value: Any, label: str) -> int:

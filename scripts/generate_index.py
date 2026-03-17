@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from semantic_search.config.app import load_app_config, AppConfig
+from semantic_search.config.app import load_app_config, AppConfig, build_preprocessing_pipeline
 from semantic_search.config.metadata import split_metadata
 from semantic_search.config.source import SourceConfig, load_source_configs
 from semantic_search.embeddings.base import EmbeddingInput
@@ -44,11 +44,16 @@ LOGGER = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def extract_from_source(source: SourceConfig) -> List[EmbeddingInput]:
+def extract_from_source(
+    source: SourceConfig,
+    preprocessing_pipeline: Optional[Any] = None,
+) -> List[EmbeddingInput]:
     """Extract records from a single data source and convert to EmbeddingInputs.
 
     Args:
         source: Source configuration loaded from YAML.
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.
 
     Returns:
         List of EmbeddingInput objects ready for embedding.
@@ -80,6 +85,10 @@ def extract_from_source(source: SourceConfig) -> List[EmbeddingInput]:
         LOGGER.critical("Failed to extract from '%s': %s", source.name, exc)
         raise SystemExit(1) from exc
 
+    if preprocessing_pipeline is not None:
+        records = list(preprocessing_pipeline.process(records))
+        LOGGER.info("  After preprocessing: %d records", len(records))
+
     prefix = source.id_prefix or source.name
     inputs = [
         EmbeddingInput(
@@ -104,12 +113,15 @@ def extract_from_source(source: SourceConfig) -> List[EmbeddingInput]:
 def build_index(
     app_cfg: AppConfig,
     sources: List[SourceConfig],
+    preprocessing_pipeline: Optional[Any] = None,
 ) -> NumpyVectorStore:
     """Build a combined vector index from multiple data sources.
 
     Args:
         app_cfg: Application configuration with embedding settings.
         sources: List of source configurations to process.
+        preprocessing_pipeline: Optional pipeline to clean/chunk records
+            before embedding.  When ``None``, records are embedded as-is.
 
     Returns:
         A populated NumpyVectorStore with embedded vectors from all sources.
@@ -156,7 +168,7 @@ def build_index(
     # Extract records from all sources
     all_inputs: List[EmbeddingInput] = []
     for source in sources:
-        all_inputs.extend(extract_from_source(source))
+        all_inputs.extend(extract_from_source(source, preprocessing_pipeline))
 
     if not all_inputs:
         LOGGER.critical("No records extracted from any source — nothing to embed.")
@@ -243,6 +255,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=None,
         help="Override embedding vector dimensionality",
     )
+    parser.add_argument(
+        "--no-preprocessing",
+        action="store_true",
+        default=False,
+        help="Disable all preprocessing (cleaning and chunking) regardless of config.",
+    )
     return parser.parse_args(argv)
 
 
@@ -283,6 +301,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 config=app_cfg.embedding.config,
             ),
             server=app_cfg.server,
+            preprocessing=app_cfg.preprocessing,
             detail_enabled=app_cfg.detail_enabled,
             filters_enabled=app_cfg.filters_enabled,
             analytics_enabled=app_cfg.analytics_enabled,
@@ -309,7 +328,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         app_cfg.embedding.dimension,
     )
 
-    store = build_index(app_cfg, sources)
+    # Build preprocessing pipeline (CLI flag > app config)
+    preprocessing_pipeline = None
+    if not args.no_preprocessing:
+        preprocessing_pipeline = build_preprocessing_pipeline(app_cfg.preprocessing)
+        if preprocessing_pipeline is not None:
+            pp = app_cfg.preprocessing
+            LOGGER.info(
+                "Preprocessing enabled: clean=%s  chunk=%s  chunk_size=%d  overlap=%d",
+                pp.clean, pp.chunk, pp.chunk_size, pp.overlap,
+            )
+
+    store = build_index(app_cfg, sources, preprocessing_pipeline)
     store.save(args.output)
     LOGGER.info("Saved %d records to %r", len(store), args.output)
 
