@@ -240,4 +240,9 @@ variable "vpc_cidr" {
   type        = string
   description = "VPC CIDR block used for scoped egress rules when restrict_egress is true."
   default     = ""
+
+  validation {
+    condition     = !var.restrict_egress || var.vpc_cidr != ""
+    error_message = "vpc_cidr must be a non-empty CIDR block when restrict_egress is true."
+  }
 }

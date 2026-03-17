@@ -17,7 +17,7 @@ A semantic search system that uses LLM-powered embeddings and vector search to e
 
 **Key references:**
 - [Product Requirements](docs/PRD-semantic-search.md)
-- [Technical Approach](developer/technical_approach.md)
+- [Technical Approach](docs/technical_approach.md)
 
 ## Problem
 
@@ -48,7 +48,7 @@ Keyword search typically retrieives <40% of relevant documents in enterprise dat
 
 - **Natural-language search** across CSV, SQL, JSON, and API data sources
 - **YAML-driven configuration** — tier (Basic/Standard/Premium), embedding backend/model, per-source display layout, and server settings in `config/app.yaml` and `config/sources/*.yaml`; no Python edits required to customise a deployment
-- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, REST API, and MongoDB adapters normalise records into a shared schema for the embedding pipeline (see `developer/pluggable_data_sources.md`)
+- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, REST API, and MongoDB adapters normalise records into a shared schema for the embedding pipeline
 - **Text preprocessing pipeline** — `TextCleaner` (HTML strip, Unicode normalisation, whitespace collapse), `TextChunker` (word-boundary splits with configurable size/overlap), and `PreprocessingPipeline` wiring them together with optional opt-in per stage
 - **Pluggable embedding providers** — AWS Bedrock, Spot-hosted open-source models, SageMaker; model + dimension auto-resolved from presets
 - **Multiple vector stores** — FAISS, Qdrant, or pgvector
@@ -91,7 +91,7 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **Phase 6 — Web UI:** Complete. React 18 + TypeScript SPA in `frontend/` with SearchBar, ResultCard, FilterPanel, Pagination, AnalyticsPanel, and hooks (useSearch, useConfig, useAnalytics, useDebounce). Tier-gated analytics panel via `GET /v1/config`. 15 component tests (Vitest + RTL). Production build in `frontend/dist/`.
 - **feature/data-abstraction — Data Abstraction & Preprocessing:** Complete. Six pluggable connectors (`ingestion/` package: CSV, SQL, JSON/JSONL, XML, REST API, MongoDB), text preprocessing pipeline (`preprocessing/` package: TextCleaner, TextChunker, PreprocessingPipeline), sample dataset (`data/sample.csv`), index generation scripts (`scripts/generate_csv_index.py`, `scripts/generate_pg_index.py`), three validation runner scripts (`test_spot_csv_server.sh`, `test_bedrock_json_server.sh`, `test_bedrock_pg_server.sh`), functional process flow doc, and 9 PR review fixes applied. Test suite: 208 passing.
 - **feature/config_enhancements — Configuration Externalization:** Complete. YAML-driven configuration system (`semantic_search/config/` package) with `config/app.yaml` for tier/embedding/server settings and `config/sources/*.yaml` for per-source connector + display configuration. Three-tier feature matrix (Basic/Standard/Premium), model presets with auto-dimension resolution, unified `scripts/generate_index.py`, `--config`/`--app-config` flags on all generate scripts, extended `/v1/config` endpoint, config-driven frontend rendering, and full backward compatibility. Test suite: 261 passing (51 new config tests).
-- **Phase 7 — Preprocessing Integration & Live Search Activation:** Complete. `PreprocessingConfig` dataclass and `build_preprocessing_pipeline()` factory added to `semantic_search/config/app.py` with full `PREPROCESSING_*` env-var override support; `PreprocessingPipeline` wired into all five generate scripts (applied after connector extraction, before embedding); `--no-preprocessing` flag on every script. `Dockerfile` upgraded to a 3-stage multi-stage build (Node 20 frontend builder + Python builder + slim runtime) so `ENABLE_UI=true` serves the React SPA at `/` in a single container. Index build runbook added (`developer/runbooks/index_build.md`). Test suite: 292 passing (24 new wiring tests + 7 config tests).
+- **Phase 7 — Preprocessing Integration & Live Search Activation:** Complete. `PreprocessingConfig` dataclass and `build_preprocessing_pipeline()` factory added to `semantic_search/config/app.py` with full `PREPROCESSING_*` env-var override support; `PreprocessingPipeline` wired into all five generate scripts (applied after connector extraction, before embedding); `--no-preprocessing` flag on every script. `Dockerfile` upgraded to a 3-stage multi-stage build (Node 20 frontend builder + Python builder + slim runtime) so `ENABLE_UI=true` serves the React SPA at `/` in a single container. Index build runbook added (`docs/runbooks/index_build.md`). Test suite: 292 passing (24 new wiring tests + 7 config tests).
 
 ## Live Environment (dev)
 
@@ -150,7 +150,7 @@ export VECTOR_STORE_PATH=/opt/index
 uv run python main.py
 ```
 
-Alternatively, set `VECTOR_STORE_PATH` to the S3 URI directly only if your deployment wraps `main.py` with an S3-download step (see `developer/runbooks/runtime_deploy.md`).
+Alternatively, set `VECTOR_STORE_PATH` to the S3 URI directly only if your deployment wraps `main.py` with an S3-download step (see `docs/runbooks/runtime_deploy.md`).
 
 ### Step 4 — Confirm readiness
 

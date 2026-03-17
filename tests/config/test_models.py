@@ -119,6 +119,19 @@ class TestLoadModelPresets:
         with pytest.raises(ModelPresetError, match="YAML mapping"):
             load_model_presets({"my-model": 512})
 
+    def test_invalid_backend_raises(self) -> None:
+        with pytest.raises(ModelPresetError, match="invalid backend"):
+            load_model_presets({"my-model": {"dimension": 512, "backend": "sagemaaker"}})
+
+    def test_non_dict_top_level_raises(self) -> None:
+        """models: 0 or models: [] must raise, not silently return built-ins."""
+        with pytest.raises(ModelPresetError, match="'models:' must be a YAML mapping"):
+            load_model_presets(0)  # type: ignore[arg-type]
+
+    def test_list_top_level_raises(self) -> None:
+        with pytest.raises(ModelPresetError, match="'models:' must be a YAML mapping"):
+            load_model_presets(["item"])  # type: ignore[arg-type]
+
     def test_resolve_dimension_uses_custom_registry(self) -> None:
         registry = load_model_presets({"custom/model": {"dimension": 768}})
         assert resolve_dimension("custom/model", registry=registry) == 768

@@ -45,6 +45,8 @@ class ModelPreset:
     description: str = ""
 
 
+VALID_BACKENDS: frozenset[str] = frozenset({"spot", "bedrock", "sagemaker"})
+
 # ---------------------------------------------------------------------------
 # Built-in presets — extend as new models are adopted.
 # ---------------------------------------------------------------------------
@@ -100,8 +102,12 @@ def load_model_presets(
             YAML mapping.
     """
     registry: Dict[str, ModelPreset] = dict(MODEL_PRESETS)
-    if not raw_models:
+    if raw_models is None or raw_models == {}:
         return registry
+    if not isinstance(raw_models, dict):
+        raise ModelPresetError(
+            f"'models:' must be a YAML mapping, got {type(raw_models).__name__}."
+        )
 
     for model_id, entry in raw_models.items():
         if not isinstance(entry, dict):
@@ -125,9 +131,15 @@ def load_model_presets(
             raise ModelPresetError(
                 f"Model '{model_id}' dimension must be positive, got {dim}."
             )
+        backend = str(entry.get("backend", "spot"))
+        if backend not in VALID_BACKENDS:
+            raise ModelPresetError(
+                f"Model '{model_id}' has invalid backend {backend!r}. "
+                f"Must be one of: {', '.join(sorted(VALID_BACKENDS))}."
+            )
         registry[model_id] = ModelPreset(
             dimension=dim,
-            backend=str(entry.get("backend", "spot")),
+            backend=backend,
             description=str(entry.get("description", "")),
         )
 
