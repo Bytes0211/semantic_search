@@ -300,14 +300,19 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     tables = [args.table] if args.table else list(TABLE_CONFIGS.keys())
 
-    # Build preprocessing pipeline (CLI flag > app config > built-in defaults)
+    # Build preprocessing pipeline (CLI flag > app config > env vars > built-in defaults)
     preprocessing_pipeline = None
     if not args.no_preprocessing:
-        app_cfg_local = None
+        from semantic_search.config.app import load_app_config
         if args.app_config:
-            from semantic_search.config.app import load_app_config
-            app_cfg_local = load_app_config(Path(args.app_config))
-        pp_cfg = app_cfg_local.preprocessing if app_cfg_local else PreprocessingConfig()
+            # Already loaded above; reuse rather than loading a second time.
+            resolved_cfg = app_cfg
+        else:
+            try:
+                resolved_cfg = load_app_config()
+            except Exception:
+                resolved_cfg = None
+        pp_cfg = resolved_cfg.preprocessing if resolved_cfg else PreprocessingConfig()
         preprocessing_pipeline = build_preprocessing_pipeline(pp_cfg)
         if preprocessing_pipeline is not None:
             LOGGER.info(

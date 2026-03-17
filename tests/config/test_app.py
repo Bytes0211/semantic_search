@@ -212,10 +212,21 @@ class TestLoadAppConfig:
 
     def test_preprocessing_overlap_gte_chunk_size_raises(self, tmp_path: Path) -> None:
         (tmp_path / "app.yaml").write_text(
-            yaml.dump({"preprocessing": {"chunk_size": 100, "overlap": 100}})
+            yaml.dump({"preprocessing": {"chunk": True, "chunk_size": 100, "overlap": 100}})
         )
         with pytest.raises(AppConfigError, match="overlap"):
             load_app_config(tmp_path)
+
+    def test_preprocessing_overlap_gte_chunk_size_allowed_when_chunk_disabled(
+        self, tmp_path: Path
+    ) -> None:
+        """overlap >= chunk_size is permitted when chunking is disabled."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"preprocessing": {"chunk": False, "chunk_size": 100, "overlap": 100}})
+        )
+        cfg = load_app_config(tmp_path)  # must not raise
+        assert cfg.preprocessing.chunk is False
+        assert cfg.preprocessing.overlap == 100
 
 
 class TestBuildPreprocessingPipeline:

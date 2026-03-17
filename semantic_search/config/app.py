@@ -339,7 +339,7 @@ def _resolve_preprocessing(raw: Dict[str, Any]) -> PreprocessingConfig:
         raise AppConfigError(
             f"preprocessing.overlap must be non-negative, got {overlap}."
         )
-    if overlap >= chunk_size:
+    if chunk and overlap >= chunk_size:
         raise AppConfigError(
             f"preprocessing.overlap ({overlap}) must be less than "
             f"preprocessing.chunk_size ({chunk_size})."

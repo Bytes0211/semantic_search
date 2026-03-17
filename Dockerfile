@@ -5,7 +5,7 @@ FROM public.ecr.aws/docker/library/node:20-slim AS frontend-builder
 WORKDIR /frontend
 
 # Copy package manifests first for cache-efficient layer ordering
-COPY frontend/package.json frontend/package-lock.json* ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --prefer-offline
 
 # Copy source and build
@@ -43,7 +43,7 @@ COPY --from=builder /build/venv /app/venv
 COPY --chown=appuser:appgroup . .
 
 # Copy pre-built React SPA from the frontend stage
-# Set ENABLE_UI=true to serve the SPA at /ui; the dist/ is always embedded
+# Set ENABLE_UI=true to serve the SPA at / (root); the dist/ is always embedded
 # in the image so there is no need to run `npm run build` in the container.
 COPY --from=frontend-builder --chown=appuser:appgroup /frontend/dist ./frontend/dist
 
