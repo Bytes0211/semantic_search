@@ -41,6 +41,25 @@ server:
   cors_origins: "*"
   search_top_k: 10
 
+# Custom model presets — register models not in the built-in preset list, or
+# override a built-in entry's dimension/backend.  Each entry must include
+# 'dimension'.  'backend' defaults to 'spot'; 'description' is optional.
+# Built-in presets (always available without this block):
+#   amazon.titan-embed-text-v1              bedrock    1536
+#   amazon.titan-embed-text-v2              bedrock    1024
+#   sentence-transformers/all-MiniLM-L6-v2  spot        384
+#   sentence-transformers/all-mpnet-base-v2 spot        768
+#
+# models:
+#   cohere.embed-english-v3:
+#     dimension: 1024
+#     backend: bedrock
+#     description: "Cohere Embed English v3"
+#   my-fine-tuned-model:
+#     dimension: 768
+#     backend: sagemaker
+#     description: "Internal fine-tuned embedding model"
+
 # Text preprocessing applied between ingestion and embedding.
 # Cleaning normalises whitespace, strips HTML, and applies Unicode NFKC.
 # Chunking splits long records at word boundaries (disabled by default —

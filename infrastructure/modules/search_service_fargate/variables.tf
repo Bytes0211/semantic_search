@@ -288,3 +288,29 @@ variable "scale_out_cooldown_seconds" {
   type        = number
   default     = 60
 }
+
+# ─── IAM Security ────────────────────────────────────────────────────────────
+
+variable "permissions_boundary_arn" {
+  type        = string
+  description = "ARN of the IAM permissions boundary policy to attach to the task role. Leave empty to skip."
+  default     = ""
+}
+
+variable "deny_guardrail_policy_json" {
+  type        = string
+  description = "JSON policy document with deny-based guardrails to attach as an inline policy on the task role. Leave empty to skip."
+  default     = ""
+}
+
+variable "restrict_egress" {
+  type        = bool
+  description = "When true, replace the all-traffic egress rule on the service SG with HTTPS-only (443) to the VPC CIDR."
+  default     = false
+}
+
+variable "vpc_cidr" {
+  type        = string
+  description = "VPC CIDR block used for scoped egress rules when restrict_egress is true."
+  default     = ""
+}

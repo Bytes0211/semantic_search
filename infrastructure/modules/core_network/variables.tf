@@ -112,3 +112,47 @@ variable "flow_log_iam_role_arn" {
   description = "IAM role ARN used when delivering flow logs to CloudWatch Logs."
   default     = ""
 }
+
+# ─── VPC Endpoints ───────────────────────────────────────────────────────────
+
+variable "enable_s3_endpoint" {
+  type        = bool
+  description = "Provision an S3 gateway VPC endpoint."
+  default     = false
+}
+
+variable "enable_interface_endpoints" {
+  type        = bool
+  description = "Master toggle for all interface VPC endpoints. Individual services are controlled by their own toggles below."
+  default     = false
+}
+
+variable "enable_sqs_endpoint" {
+  type        = bool
+  description = "Provision an SQS interface endpoint (requires enable_interface_endpoints)."
+  default     = true
+}
+
+variable "enable_sns_endpoint" {
+  type        = bool
+  description = "Provision an SNS interface endpoint (requires enable_interface_endpoints)."
+  default     = true
+}
+
+variable "enable_bedrock_endpoint" {
+  type        = bool
+  description = "Provision a Bedrock Runtime interface endpoint (requires enable_interface_endpoints)."
+  default     = true
+}
+
+variable "enable_logs_endpoint" {
+  type        = bool
+  description = "Provision a CloudWatch Logs interface endpoint (requires enable_interface_endpoints)."
+  default     = true
+}
+
+variable "enable_ecr_endpoints" {
+  type        = bool
+  description = "Provision ECR API and ECR DKR interface endpoints (requires enable_interface_endpoints)."
+  default     = true
+}

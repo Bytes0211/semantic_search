@@ -74,7 +74,7 @@ server:
 
 ## Embedding Model Presets
 
-The system auto-resolves the `dimension` when a known model is used:
+The system auto-resolves `dimension` for known models:
 
 | Model                                      | Backend   | Dimension |
 |--------------------------------------------|-----------|-----------|
@@ -83,7 +83,36 @@ The system auto-resolves the `dimension` when a known model is used:
 | `sentence-transformers/all-MiniLM-L6-v2`   | spot      | 384       |
 | `sentence-transformers/all-mpnet-base-v2`  | spot      | 768       |
 
-For custom models, provide `dimension` explicitly in the YAML.
+### Adding Custom Models via YAML
+
+Use the `models:` block in `config/app.yaml` to register additional models or
+override built-in entries — **no Python source edits required**.
+
+```yaml
+models:
+  cohere.embed-english-v3:
+    dimension: 1024
+    backend: bedrock
+    description: "Cohere Embed English v3"   # optional
+  my-fine-tuned-model:
+    dimension: 768
+    backend: sagemaker
+    description: "Internal fine-tuned model"
+```
+
+Field reference:
+- `dimension` *(required)* — output vector size; must be a positive integer.
+- `backend` *(optional)* — `spot`, `bedrock`, or `sagemaker`. Defaults to `spot`.
+- `description` *(optional)* — human-readable label, used in logs and tooling.
+
+User-defined entries take precedence over built-in presets with the same ID,
+so you can also override a built-in dimension without touching Python.
+
+The resolved registry is available at `AppConfig.models` for any downstream
+code that needs to enumerate available models.
+
+For one-off use, you can still provide `dimension` explicitly in the `embedding:`
+block instead of adding a `models:` entry — that always takes highest precedence.
 
 ## Source Config Schema (sources/*.yaml)
 

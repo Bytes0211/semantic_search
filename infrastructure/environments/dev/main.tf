@@ -39,7 +39,37 @@ module "core_network" {
   flow_log_destination_type = var.flow_log_destination_type
   flow_log_destination_arn  = var.flow_log_destination_arn
   flow_log_iam_role_arn     = var.flow_log_iam_role_arn
-  tags                      = local.default_tags
+
+  # VPC Endpoints
+  enable_s3_endpoint         = var.enable_s3_endpoint
+  enable_interface_endpoints = var.enable_interface_endpoints
+
+  tags = local.default_tags
+}
+
+# ---------------------------------------------------------------------------
+# IAM Security
+# ---------------------------------------------------------------------------
+
+module "iam_security" {
+  source = "../../modules/iam_security"
+
+  project     = var.project
+  environment = var.environment
+  tags        = local.default_tags
+
+  enable_kms        = var.enable_kms
+  enable_cloudtrail = var.enable_cloudtrail
+  enable_data_events = var.enable_cloudtrail_data_events
+
+  # Scope the permission boundary to the project's data buckets once they exist.
+  s3_bucket_arns = [
+    module.data_plane.canonical_bucket_arn,
+    module.data_plane.embeddings_bucket_arn,
+    var.vector_store == "faiss" ? module.vector_store_faiss[0].index_bucket_arn : "arn:aws:s3:::unused",
+  ]
+  sqs_queue_arns = [module.data_plane.ingestion_queue_arn]
+  sns_topic_arns = [module.data_plane.reindex_topic_arn]
 }
 
 module "data_plane" {
@@ -53,9 +83,8 @@ module "data_plane" {
   bucket_lifecycle_days = var.bucket_lifecycle_days
   vpc_id                = module.core_network.vpc_id
   private_subnet_ids    = module.core_network.private_subnet_ids
+  kms_key_arn           = var.enable_kms ? module.iam_security.kms_key_arn : ""
   tags                  = local.default_tags
-
-  # TODO: Wire additional module-specific inputs (e.g., KMS keys, DLQ policies) as contracts are finalized.
 }
 
 # ---------------------------------------------------------------------------
@@ -233,6 +262,13 @@ module "search_service_fargate" {
   autoscaling_requests_per_target   = var.search_service_autoscaling_requests_per_target
   scale_in_cooldown_seconds         = var.search_service_scale_in_cooldown_seconds
   scale_out_cooldown_seconds        = var.search_service_scale_out_cooldown_seconds
+
+  # IAM Security
+  permissions_boundary_arn    = module.iam_security.permission_boundary_arn
+  deny_guardrail_policy_json  = module.iam_security.deny_guardrail_policy_json
+  restrict_egress             = var.restrict_egress
+  vpc_cidr                    = var.vpc_cidr
+
   tags                              = local.default_tags
 }
 
@@ -275,6 +311,12 @@ module "search_service_lambda" {
   xray_tracing_mode                 = var.lambda_xray_tracing_mode
   alarm_throttle_threshold          = var.lambda_alarm_throttle_threshold
   additional_security_group_ids     = var.lambda_additional_security_group_ids
+
+  # IAM Security
+  permissions_boundary_arn    = module.iam_security.permission_boundary_arn
+  deny_guardrail_policy_json  = module.iam_security.deny_guardrail_policy_json
+  restrict_egress             = var.restrict_egress
+  vpc_cidr                    = var.vpc_cidr
 }
 
 locals {
@@ -303,6 +345,52 @@ locals {
     ? module.search_service_lambda[0].api_log_group_name
     : null
   )
+}
+
+# ---------------------------------------------------------------------------
+# IAM Policy Attachments — bind dangling policies to runtime roles
+# ---------------------------------------------------------------------------
+
+# Fargate: Bedrock invoke policy → task role
+resource "aws_iam_role_policy_attachment" "fargate_bedrock_invoke" {
+  count      = var.search_runtime == "fargate" && var.embedding_backend == "bedrock" ? 1 : 0
+  role       = module.search_service_fargate[0].task_role_arn
+  policy_arn = module.embedding_bedrock[0].bedrock_invoke_policy_arn
+}
+
+# Fargate: Embedding S3 access policy → task role
+resource "aws_iam_role_policy_attachment" "fargate_embedding_s3" {
+  count      = var.search_runtime == "fargate" && var.embedding_backend == "bedrock" ? 1 : 0
+  role       = module.search_service_fargate[0].task_role_arn
+  policy_arn = module.embedding_bedrock[0].s3_access_policy_arn
+}
+
+# Fargate: FAISS index read policy → task role
+resource "aws_iam_role_policy_attachment" "fargate_faiss_read" {
+  count      = var.search_runtime == "fargate" && var.vector_store == "faiss" ? 1 : 0
+  role       = module.search_service_fargate[0].task_role_arn
+  policy_arn = module.vector_store_faiss[0].index_read_policy_arn
+}
+
+# Lambda: Bedrock invoke policy → Lambda role
+resource "aws_iam_role_policy_attachment" "lambda_bedrock_invoke" {
+  count      = var.search_runtime == "lambda" && var.embedding_backend == "bedrock" ? 1 : 0
+  role       = module.search_service_lambda[0].role_name
+  policy_arn = module.embedding_bedrock[0].bedrock_invoke_policy_arn
+}
+
+# Lambda: Embedding S3 access policy → Lambda role
+resource "aws_iam_role_policy_attachment" "lambda_embedding_s3" {
+  count      = var.search_runtime == "lambda" && var.embedding_backend == "bedrock" ? 1 : 0
+  role       = module.search_service_lambda[0].role_name
+  policy_arn = module.embedding_bedrock[0].s3_access_policy_arn
+}
+
+# Lambda: FAISS index read policy → Lambda role
+resource "aws_iam_role_policy_attachment" "lambda_faiss_read" {
+  count      = var.search_runtime == "lambda" && var.vector_store == "faiss" ? 1 : 0
+  role       = module.search_service_lambda[0].role_name
+  policy_arn = module.vector_store_faiss[0].index_read_policy_arn
 }
 
 module "observability" {
@@ -361,6 +449,21 @@ output "embedding_backend" {
 output "vector_store_engine" {
   description = "Vector store engine configured for this environment."
   value       = var.vector_store
+}
+
+output "permission_boundary_arn" {
+  description = "ARN of the IAM permission boundary attached to workload roles."
+  value       = module.iam_security.permission_boundary_arn
+}
+
+output "kms_key_arn" {
+  description = "ARN of the customer-managed KMS key (empty when KMS is disabled)."
+  value       = module.iam_security.kms_key_arn
+}
+
+output "cloudtrail_arn" {
+  description = "ARN of the CloudTrail trail (empty when CloudTrail is disabled)."
+  value       = module.iam_security.cloudtrail_arn
 }
 
 variable "project" {
@@ -864,4 +967,42 @@ variable "vector_store" {
     condition     = contains(["faiss", "qdrant", "pgvector"], var.vector_store)
     error_message = "vector_store must be one of \"faiss\", \"qdrant\", or \"pgvector\"."
   }
+}
+
+# ─── IAM Security ────────────────────────────────────────────────────────────
+
+variable "enable_kms" {
+  type        = bool
+  description = "Provision a customer-managed KMS key for data-at-rest encryption."
+  default     = true
+}
+
+variable "enable_cloudtrail" {
+  type        = bool
+  description = "Provision a CloudTrail trail for API audit logging."
+  default     = true
+}
+
+variable "enable_cloudtrail_data_events" {
+  type        = bool
+  description = "Enable CloudTrail data-event logging for S3 and Lambda (higher cost)."
+  default     = false
+}
+
+variable "enable_s3_endpoint" {
+  type        = bool
+  description = "Provision an S3 gateway VPC endpoint."
+  default     = false
+}
+
+variable "enable_interface_endpoints" {
+  type        = bool
+  description = "Provision interface VPC endpoints for SQS, SNS, Bedrock, CW Logs, and ECR."
+  default     = false
+}
+
+variable "restrict_egress" {
+  type        = bool
+  description = "Tighten security group egress to HTTPS-only to VPC CIDR (requires VPC endpoints for full connectivity)."
+  default     = false
 }

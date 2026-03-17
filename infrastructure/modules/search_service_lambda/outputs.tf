@@ -62,3 +62,13 @@ output "security_group_id" {
   description = "Security group attached to Lambda ENIs when VPC networking is enabled."
   value       = aws_security_group.lambda.id
 }
+
+output "role_name" {
+  description = "Name of the IAM role assumed by the Lambda function."
+  value       = aws_iam_role.lambda.name
+}
+
+output "role_arn" {
+  description = "ARN of the IAM role assumed by the Lambda function."
+  value       = aws_iam_role.lambda.arn
+}

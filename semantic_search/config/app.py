@@ -1,8 +1,13 @@
-"""Application-level configuration — tier, embedding, server, and preprocessing settings.
+"""Application-level configuration — tier, embedding, server, preprocessing, and model settings.
 
 Reads ``config/app.yaml`` (or a path provided via the ``CONFIG_DIR``
 environment variable) and merges it with environment-variable overrides.
 Precedence: **env var > YAML value > built-in default**.
+
+Custom embedding models can be declared in the ``models:`` block of
+``config/app.yaml`` without editing Python source.  They are merged with the
+built-in :data:`~semantic_search.config.models.MODEL_PRESETS` and stored on
+:attr:`AppConfig.models` for downstream use.
 """
 
 from __future__ import annotations
@@ -16,7 +21,13 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from semantic_search.config.models import ModelPresetError, resolve_dimension
+from semantic_search.config.models import (
+    MODEL_PRESETS,
+    ModelPreset,
+    ModelPresetError,
+    load_model_presets,
+    resolve_dimension,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -159,6 +170,9 @@ class AppConfig:
         embedding: Embedding provider configuration.
         server: Server / runtime configuration.
         preprocessing: Text preprocessing configuration.
+        models: Merged model preset registry (built-ins + YAML overrides).
+            User-defined presets from the ``models:`` block of ``config/app.yaml``
+            take precedence over built-in presets.
         detail_enabled: Whether drill-down detail is active.
         filters_enabled: Whether metadata filters are active.
         analytics_enabled: Whether the analytics sidebar is active.
@@ -168,6 +182,10 @@ class AppConfig:
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
+    models: Dict[str, ModelPreset] = field(
+        default_factory=lambda: dict(MODEL_PRESETS),
+        repr=False,
+    )
     detail_enabled: bool = True
     filters_enabled: bool = True
     analytics_enabled: bool = False
@@ -260,8 +278,11 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
     # -- Tier ---------------------------------------------------------------
     tier = _resolve_tier(raw)
 
+    # -- Models (must be resolved before embedding) -------------------------
+    models = _resolve_models(raw)
+
     # -- Embedding ----------------------------------------------------------
-    embedding = _resolve_embedding(raw)
+    embedding = _resolve_embedding(raw, models)
 
     # -- Server -------------------------------------------------------------
     server = _resolve_server(raw)
@@ -281,6 +302,7 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
         embedding=embedding,
         server=server,
         preprocessing=preprocessing,
+        models=models,
         **flags,
     )
 
@@ -288,6 +310,28 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _resolve_models(raw: Dict[str, Any]) -> Dict[str, ModelPreset]:
+    """Resolve the merged model preset registry from the ``models:`` YAML block.
+
+    Wraps :func:`~semantic_search.config.models.load_model_presets` and
+    re-raises :class:`~semantic_search.config.models.ModelPresetError` as
+    :class:`AppConfigError` to keep error types consistent for callers.
+
+    Args:
+        raw: Parsed app YAML.
+
+    Returns:
+        A merged ``Dict[str, ModelPreset]`` (built-ins + user overrides).
+
+    Raises:
+        AppConfigError: If any user-defined model entry is invalid.
+    """
+    try:
+        return load_model_presets(raw.get("models"))
+    except ModelPresetError as exc:
+        raise AppConfigError(str(exc)) from exc
 
 
 def _resolve_preprocessing(raw: Dict[str, Any]) -> PreprocessingConfig:
@@ -463,11 +507,17 @@ def _resolve_tier(raw: Dict[str, Any]) -> Tier:
         ) from exc
 
 
-def _resolve_embedding(raw: Dict[str, Any]) -> EmbeddingConfig:
+def _resolve_embedding(
+    raw: Dict[str, Any],
+    registry: Optional[Dict[str, ModelPreset]] = None,
+) -> EmbeddingConfig:
     """Resolve embedding config from env overrides merged with YAML.
 
     Args:
         raw: Parsed app YAML.
+        registry: Merged model preset registry (built-ins + user overrides)
+            used to auto-resolve the embedding dimension.  Defaults to the
+            built-in presets when ``None``.
 
     Returns:
         A resolved :class:`EmbeddingConfig`.
@@ -491,7 +541,7 @@ def _resolve_embedding(raw: Dict[str, Any]) -> EmbeddingConfig:
     )
 
     try:
-        dimension = resolve_dimension(model, explicit_dim)
+        dimension = resolve_dimension(model, explicit_dim, registry=registry)
     except ModelPresetError as exc:
         raise AppConfigError(str(exc)) from exc
     extra_config = emb_raw.get("config") or {}

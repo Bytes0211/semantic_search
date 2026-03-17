@@ -51,7 +51,16 @@ resource "aws_iam_role" "lambda" {
     }]
   })
 
+  permissions_boundary = var.permissions_boundary_arn != "" ? var.permissions_boundary_arn : null
+
   tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "lambda_deny_guardrail" {
+  count  = var.deny_guardrail_policy_json != "" ? 1 : 0
+  name   = "${local.name_prefix}-deny-guardrail"
+  role   = aws_iam_role.lambda.id
+  policy = var.deny_guardrail_policy_json
 }
 
 resource "aws_iam_role_policy_attachment" "basic_execution" {
@@ -86,12 +95,26 @@ resource "aws_security_group" "lambda" {
   description = "Security group for Lambda search runtime"
   vpc_id      = var.vpc_id
 
-  egress {
-    description = "Allow outbound traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "egress" {
+    for_each = var.restrict_egress ? [] : [1]
+    content {
+      description = "Allow outbound traffic (unrestricted)"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  dynamic "egress" {
+    for_each = var.restrict_egress ? [1] : []
+    content {
+      description = "HTTPS to VPC CIDR (VPC endpoints)"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidr]
+    }
   }
 
   tags = local.common_tags

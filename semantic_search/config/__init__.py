@@ -6,7 +6,7 @@ Public API
 - **Preprocessing config:** :class:`PreprocessingConfig`
 - **Source configs:** :func:`load_source_configs`, :class:`SourceConfig`
 - **Display configs:** :class:`DisplayConfig`, :func:`parse_display_config`
-- **Model presets:** :func:`resolve_dimension`, :data:`MODEL_PRESETS`
+- **Model presets:** :func:`resolve_dimension`, :func:`load_model_presets`, :data:`MODEL_PRESETS`
 - **Metadata helper:** :func:`split_metadata`
 """
 
@@ -34,6 +34,7 @@ from semantic_search.config.models import (
     ModelPreset,
     ModelPresetError,
     get_preset,
+    load_model_presets,
     resolve_dimension,
 )
 from semantic_search.config.source import (
@@ -68,6 +69,7 @@ __all__ = [
     "ModelPreset",
     "ModelPresetError",
     "get_preset",
+    "load_model_presets",
     "resolve_dimension",
     # source
     "ConnectorConfig",

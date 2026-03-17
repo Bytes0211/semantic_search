@@ -42,7 +42,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "canonical" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.kms_key_arn != "" ? "aws:kms" : "AES256"
+      kms_master_key_id = var.kms_key_arn != "" ? var.kms_key_arn : null
     }
   }
 }
@@ -87,7 +88,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "embeddings" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.kms_key_arn != "" ? "aws:kms" : "AES256"
+      kms_master_key_id = var.kms_key_arn != "" ? var.kms_key_arn : null
     }
   }
 }
@@ -141,6 +143,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "embeddings" {
 resource "aws_sqs_queue" "ingestion_dlq" {
   name                      = "${local.name_prefix}-ingestion-dlq"
   message_retention_seconds = 1209600 # 14 days
+  kms_master_key_id         = var.kms_key_arn != "" ? var.kms_key_arn : null
   tags                      = local.common_tags
 }
 
@@ -148,6 +151,7 @@ resource "aws_sqs_queue" "ingestion" {
   name                       = "${local.name_prefix}-ingestion"
   visibility_timeout_seconds = 300
   message_retention_seconds  = 86400 # 1 day
+  kms_master_key_id          = var.kms_key_arn != "" ? var.kms_key_arn : null
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.ingestion_dlq.arn
@@ -160,8 +164,9 @@ resource "aws_sqs_queue" "ingestion" {
 # ─── SNS: Reindex notification topic ────────────────────────────────────────
 
 resource "aws_sns_topic" "reindex" {
-  name = "${local.name_prefix}-reindex"
-  tags = local.common_tags
+  name              = "${local.name_prefix}-reindex"
+  kms_master_key_id = var.kms_key_arn != "" ? var.kms_key_arn : null
+  tags              = local.common_tags
 }
 
 # ─── DynamoDB: Deduplication store (optional) ───────────────────────────────

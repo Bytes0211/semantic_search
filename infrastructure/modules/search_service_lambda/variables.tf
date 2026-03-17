@@ -215,3 +215,29 @@ variable "additional_security_group_ids" {
   type        = list(string)
   default     = []
 }
+
+# ─── IAM Security ────────────────────────────────────────────────────────────
+
+variable "permissions_boundary_arn" {
+  type        = string
+  description = "ARN of the IAM permissions boundary policy to attach to the Lambda execution role. Leave empty to skip."
+  default     = ""
+}
+
+variable "deny_guardrail_policy_json" {
+  type        = string
+  description = "JSON policy document with deny-based guardrails to attach as an inline policy on the Lambda role. Leave empty to skip."
+  default     = ""
+}
+
+variable "restrict_egress" {
+  type        = bool
+  description = "When true, replace the all-traffic egress rule on the Lambda SG with HTTPS-only (443) to the VPC CIDR."
+  default     = false
+}
+
+variable "vpc_cidr" {
+  type        = string
+  description = "VPC CIDR block used for scoped egress rules when restrict_egress is true."
+  default     = ""
+}

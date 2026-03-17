@@ -9,6 +9,7 @@ from semantic_search.config.models import (
     ModelPreset,
     ModelPresetError,
     get_preset,
+    load_model_presets,
     resolve_dimension,
 )
 
@@ -58,6 +59,69 @@ class TestResolveDimension:
     def test_negative_explicit_dim_raises(self) -> None:
         with pytest.raises(ModelPresetError, match="positive"):
             resolve_dimension("amazon.titan-embed-text-v1", explicit_dim=-1)
+
+
+class TestLoadModelPresets:
+    """Verify load_model_presets merging and validation logic."""
+
+    def test_none_returns_builtin_copy(self) -> None:
+        registry = load_model_presets(None)
+        assert registry == MODEL_PRESETS
+        # Ensure it is a copy, not the same object
+        assert registry is not MODEL_PRESETS
+
+    def test_empty_dict_returns_builtin_copy(self) -> None:
+        registry = load_model_presets({})
+        assert registry == MODEL_PRESETS
+
+    def test_custom_model_added(self) -> None:
+        registry = load_model_presets({"my-model": {"dimension": 512, "backend": "bedrock"}})
+        assert "my-model" in registry
+        assert registry["my-model"].dimension == 512
+        assert registry["my-model"].backend == "bedrock"
+
+    def test_custom_model_description_defaults_to_empty(self) -> None:
+        registry = load_model_presets({"my-model": {"dimension": 256}})
+        assert registry["my-model"].description == ""
+
+    def test_custom_model_backend_defaults_to_spot(self) -> None:
+        registry = load_model_presets({"my-model": {"dimension": 256}})
+        assert registry["my-model"].backend == "spot"
+
+    def test_builtin_presets_still_present(self) -> None:
+        registry = load_model_presets({"new-model": {"dimension": 128}})
+        assert "amazon.titan-embed-text-v1" in registry
+        assert "sentence-transformers/all-MiniLM-L6-v2" in registry
+
+    def test_user_entry_overrides_builtin(self) -> None:
+        registry = load_model_presets(
+            {"amazon.titan-embed-text-v1": {"dimension": 512, "backend": "bedrock"}}
+        )
+        assert registry["amazon.titan-embed-text-v1"].dimension == 512
+
+    def test_missing_dimension_raises(self) -> None:
+        with pytest.raises(ModelPresetError, match="missing required field 'dimension'"):
+            load_model_presets({"my-model": {"backend": "spot"}})
+
+    def test_invalid_dimension_string_raises(self) -> None:
+        with pytest.raises(ModelPresetError, match="invalid dimension"):
+            load_model_presets({"my-model": {"dimension": "big"}})
+
+    def test_zero_dimension_raises(self) -> None:
+        with pytest.raises(ModelPresetError, match="positive"):
+            load_model_presets({"my-model": {"dimension": 0}})
+
+    def test_negative_dimension_raises(self) -> None:
+        with pytest.raises(ModelPresetError, match="positive"):
+            load_model_presets({"my-model": {"dimension": -128}})
+
+    def test_non_mapping_entry_raises(self) -> None:
+        with pytest.raises(ModelPresetError, match="YAML mapping"):
+            load_model_presets({"my-model": 512})
+
+    def test_resolve_dimension_uses_custom_registry(self) -> None:
+        registry = load_model_presets({"custom/model": {"dimension": 768}})
+        assert resolve_dimension("custom/model", registry=registry) == 768
 
 
 class TestGetPreset:
