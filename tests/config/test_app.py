@@ -87,6 +87,34 @@ class TestLoadAppConfig:
         cfg = load_app_config(tmp_path)
         assert cfg.tier == Tier.PREMIUM
 
+    def test_tier_locked_ignores_env_var(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TIER env var must be silently ignored when tier_locked is true."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"tier": "basic", "tier_locked": True})
+        )
+        monkeypatch.setenv("TIER", "premium")
+        cfg = load_app_config(tmp_path)
+        assert cfg.tier == Tier.BASIC
+
+    def test_tier_locked_without_tier_raises(self, tmp_path: Path) -> None:
+        """tier_locked: true with no tier value must raise AppConfigError."""
+        (tmp_path / "app.yaml").write_text(yaml.dump({"tier_locked": True}))
+        with pytest.raises(AppConfigError, match="tier_locked"):
+            load_app_config(tmp_path)
+
+    def test_tier_locked_false_still_allows_env_override(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tier_locked: false (default) keeps normal env-var precedence."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"tier": "basic", "tier_locked": False})
+        )
+        monkeypatch.setenv("TIER", "premium")
+        cfg = load_app_config(tmp_path)
+        assert cfg.tier == Tier.PREMIUM
+
     def test_analytics_enabled_backward_compat(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ANALYTICS_ENABLED", "true")
         cfg = load_app_config(tmp_path)

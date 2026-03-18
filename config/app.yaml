@@ -4,7 +4,7 @@
 # Precedence: environment variable > this YAML > built-in defaults.
 #
 # Env override mapping:
-#   TIER               → tier
+#   TIER               → tier (ignored when tier_locked: true)
 #   EMBEDDING_BACKEND  → embedding.backend
 #   EMBEDDING_MODEL    → embedding.model
 #   EMBEDDING_DIMENSION→ embedding.dimension
@@ -24,7 +24,11 @@
 #   basic    → search only
 #   standard → search + drill-down detail + metadata filters
 #   premium  → standard + analytics sidebar
-tier: standard
+tier: premium
+
+# Lock the tier so the TIER environment variable cannot override it.
+# Set to true before deploying to clients to prevent tier escalation.
+tier_locked: false
 
 # Embedding provider settings.
 embedding:

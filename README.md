@@ -23,7 +23,7 @@ A semantic search system that uses LLM-powered embeddings and vector search to e
 
 Organizations store valuable information across databases, CRMs, spreadsheets, and legacy systems but rely on keyword-only search that fails to surface relevant insights. This leads to poor search accuracy, slow manual review, and missed connections across data sources.
 
-Keyword search typically retrieives <40% of relevant documents in enterprise datasets.
+Keyword search typically retrieves **<40%** of relevant documents in enterprise datasets.
 
 ## Comparison Table: Keyword Search vs. Semantic Search
 
@@ -46,24 +46,36 @@ Keyword search typically retrieives <40% of relevant documents in enterprise dat
 
 ## Key Features
 
-- **Natural-language search** across CSV, SQL, JSON, and API data sources
-- **YAML-driven configuration** — tier (Basic/Standard/Premium), embedding backend/model, per-source display layout, and server settings in `config/app.yaml` and `config/sources/*.yaml`; no Python edits required to customise a deployment
-- **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, REST API, and MongoDB adapters normalise records into a shared schema for the embedding pipeline
-- **Text preprocessing pipeline** — `TextCleaner` (HTML strip, Unicode normalisation, whitespace collapse), `TextChunker` (word-boundary splits with configurable size/overlap), and `PreprocessingPipeline` wiring them together with optional opt-in per stage
-- **Pluggable embedding providers** — AWS Bedrock, Spot-hosted open-source models, SageMaker; model + dimension auto-resolved from presets
-- **Multiple vector stores** — FAISS, Qdrant, or pgvector
-- **Flexible deployment** — ECS/Fargate or Lambda, toggled via Terraform configuration
-- **Filtering & ranking** — cosine similarity with optional cross-encoder re-ranking, support for date/category/tag filters
-- **FastAPI runtime & CLI tooling** — container-ready REST service with a shared command-line client for validation and smoke tests
-- **Unified index builder** — `scripts/generate_index.py` reads YAML configs and builds a combined multi-source index in one command
-- **Validation UI** — self-contained single-page web interface served at `/ui` for issuing queries during local development and deployment validation
-- **React Web UI** — React 18 + TypeScript SPA (`frontend/`) with search bar, result cards, dynamic filter panel, pagination, and an optional Premium-tier analytics sidebar; served via S3 + CloudFront or a `StaticFiles` mount on the same container
-- **Security hardening** — IAM least-privilege permission boundaries, KMS customer-managed keys with auto-rotation for S3/SQS/SNS encryption, CloudTrail audit logging, VPC interface endpoints (Bedrock, ECR, CloudWatch Logs, SQS, SNS) to keep traffic off the public internet, and configurable HTTPS-only egress restrictions on all service security groups
+- **Ingestion & Preprocessing**
+  - **YAML-driven configuration** — tier (Basic/Standard/Premium), embedding backend/model, per-source display layout, and server settings in `config/app.yaml` and `config/sources/*.yaml`; no Python edits required to customise a deployment
+  - **Pluggable data ingestion connectors** — CSV, SQL, JSON, XML, REST API, and MongoDB adapters normalise records into a shared schema for the embedding pipeline (see `developer/pluggable_data_sources.md`)
+  - **Text preprocessing pipeline** — `TextCleaner` (HTML strip, Unicode normalisation, whitespace collapse), `TextChunker` (word-boundary splits with configurable size/overlap), and `PreprocessingPipeline` wiring them together with optional opt-in per stage
+  - **Unified index builder** — `scripts/generate_index.py` reads YAML configs and builds a combined multi-source index in one command
+- **Embeddings & Vector Stores**
+  - **Pluggable embedding providers** — AWS Bedrock, Spot-hosted open-source models, and SageMaker; model + dimension auto-resolved from presets. SageMaker pairs with HuggingFace containers to serve **domain-specific fine-tuned embedding models** — organisations in legal, medical, or financial verticals can deploy a model trained on their own corpus (case law, clinical notes, SEC filings) and route the platform to that endpoint via `endpoint_name` configuration, with no changes to ingestion, vector storage, or search logic
+  - **Multiple vector stores** — FAISS, Qdrant, or pgvector
+- **Runtime & Deployment**
+  - **Natural-language search** across CSV, SQL, JSON, and API data sources
+  - **Flexible deployment** — ECS/Fargate or Lambda, toggled via Terraform configuration
+  - **FastAPI runtime & CLI tooling** — container-ready REST service with a shared command-line client for validation and smoke tests
+  - **Validation UI** — self-contained single-page web interface served at `/ui` for issuing queries during local development and deployment validation
+  - **React Web UI** — React 18 + TypeScript SPA (`frontend/`) with search bar, result cards, dynamic filter panel, pagination, and an optional Premium-tier analytics sidebar; served via S3 + CloudFront or a `StaticFiles` mount on the same container
+- **Security & Observability**
+  - **Security hardening** — IAM least-privilege permission boundaries, KMS customer-managed keys with auto-rotation for S3/SQS/SNS encryption, CloudTrail audit logging, VPC interface endpoints (Bedrock, ECR, CloudWatch Logs, SQS, SNS) to keep traffic off the public internet, and configurable HTTPS-only egress restrictions on all service security groups
+  - **Observability tooling** — Terraform-provisioned CloudWatch dashboards, metrics, alarms, and SNS notifications for end-to-end runtime monitoring
+
+## Performance Characteristics
+
+The runtime targets P95 ≤ 1 s end-to-end, with CloudWatch alarms firing at 900 ms to catch regressions before they impact users. The current `NumpyVectorStore` uses an O(n) brute-force similarity scan, which remains suitable for moderate-scale indexes and should transition to FAISS, pgvector, or Qdrant as volumes grow. The bundled Locust harness validates all three SLOs (latency, error rate, throughput) in both interactive and CI-driven modes to ensure performance stays within bounds.
+
+## Security Model Summary
+
+All traffic stays inside the project VPC—services sit on private subnets behind ALB/API Gateway front doors, and S3, Bedrock, SQS, and SNS are accessed through VPC interface endpoints so no control-plane calls leave AWS networking. Embeddings and index artefacts are stored in KMS-encrypted buckets and queues with per-service IAM roles, and the embedding pipeline writes through permission-scoped policies that prevent direct bucket access. IAM permission boundaries plus deny guardrails wrap every runtime role, blocking lateral movement or privilege escalation even if a container is compromised.
 
 ## Architecture Overview
 
 1. **Data Ingestion Layer** — Pluggable extractors normalize source data (CSV, SQL, JSON, API) and emit canonical records to S3.
-2. **Preprocessing** — Python pipeline for text cleaning, field selection, and chunking.
+2. **Preprocessing** — Python pipeline for text cleaning, field selection, and chunking, fully driven by YAML configuration (see the `preprocessing` block in `config/app.yaml` with env-var overrides).
 3. **Embedding Provider Interface** — Configurable adapters for AWS Bedrock, Spot-hosted models, or SageMaker endpoints; selected via `var.embedding_backend`.
 4. **Vector Store** — FAISS (on ECS), Qdrant, or pgvector; selected via Terraform module parameters.
 5. **Search Service Runtime** — Containerized FastAPI deployable to ECS/Fargate or Lambda, toggled by `var.search_runtime`.

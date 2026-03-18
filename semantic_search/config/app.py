@@ -480,6 +480,10 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
 def _resolve_tier(raw: Dict[str, Any]) -> Tier:
     """Resolve the subscription tier from env or YAML.
 
+    When ``tier_locked: true`` is set in the YAML, the ``TIER`` environment
+    variable is ignored and the YAML value is always used.  This prevents
+    clients from escalating their tier after deployment.
+
     Args:
         raw: Parsed app YAML.
 
@@ -489,7 +493,25 @@ def _resolve_tier(raw: Dict[str, Any]) -> Tier:
     Raises:
         AppConfigError: If the tier string is not recognised.
     """
-    tier_str = os.environ.get("TIER") or raw.get("tier")
+    tier_locked = bool(raw.get("tier_locked", False))
+    yaml_tier_str = raw.get("tier")
+
+    if tier_locked:
+        if yaml_tier_str is None:
+            raise AppConfigError(
+                "tier_locked is true but no 'tier' value is set in app.yaml."
+            )
+        env_tier = os.environ.get("TIER")
+        if env_tier:
+            LOGGER.warning(
+                "tier_locked is enabled — ignoring TIER env var ('%s'); "
+                "using locked tier '%s'.",
+                env_tier,
+                yaml_tier_str,
+            )
+        tier_str = yaml_tier_str
+    else:
+        tier_str = os.environ.get("TIER") or yaml_tier_str
 
     # Backward compat: ANALYTICS_ENABLED=true → premium
     if tier_str is None:

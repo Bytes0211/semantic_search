@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Spot uses a local hash-based embedding stub — no AWS credentials required.
-# PROVIDER_CONFIG_JSON only needs the dimension to match the index.
 if [[ -z "${PROVIDER_CONFIG_JSON:-}" ]]; then
-  export PROVIDER_CONFIG_JSON='{"dimension": 384}'
+  export PROVIDER_CONFIG_JSON='{"region":"us-east-1","model":"amazon.titan-embed-text-v1"}'
 fi
 
 ###############################################################################
-# test_spot_csv_server.sh
+# test_bedrock_policies_server.sh
 #
-# Builds a Spot-embedded vector index from a CSV file and validates the
-# local search server against it.  No AWS credentials are required.
+# Builds a Bedrock-embedded vector index from the semantic_search_test
+# PostgreSQL database (sop + compliance_procedures tables via UNION ALL)
+# and validates the local search server against it.
 #
-# NOTE: The Spot provider in this codebase is a deterministic hash-based
-# stub.  Search scores will not reflect true semantic similarity until a
-# real SentenceTransformers endpoint is wired in.  Use test_bedrock_pg_server.sh
-# or test_bedrock_json_server.sh for semantically meaningful results.
+# Tables indexed:
+#   • sop                   (title, description → text; title, category → metadata;
+#                            description → detail drill-down)
+#   • compliance_procedures (title, control_objective → text; title, risk_category → metadata;
+#                            control_objective → detail drill-down)
 #
-# Default CSV: data/sample.csv (20-row knowledge base)
-# Override:    CSV_PATH=./my_data.csv ./test_spot_csv_server.sh
-#
-# Usage:
-#   ./test_spot_csv_server.sh           # CLI query loop
-#   ./test_spot_csv_server.sh --ui      # + open React UI in browser
+# Prerequisites
+# -------------
+#   1. PROVIDER_CONFIG_JSON exported with Bedrock credentials + config:
+#        export PROVIDER_CONFIG_JSON='{"region":"us-east-1","model":"amazon.titan-embed-text-v1"}'
+#   2. PostgreSQL running locally with the semantic_search_test database accessible:
+#        psql -d semantic_search_test -c "SELECT 1"
 ###############################################################################
 
 # ------------------------------- UI Helpers -------------------------------- #
@@ -31,8 +31,6 @@ fi
 SPINNER_PID=""
 SERVER_PID=""
 TAIL_PID=""
-ENABLE_UI_FLAG=false
-READY_STATUS=1
 
 start_spinner() {
   local msg="$1"
@@ -82,15 +80,16 @@ kill_port_occupant() {
 banner() {
   cat <<'EOF'
 ╔══════════════════════════════════════════════════════════════════╗
-║  Semantic Search :: CSV × Spot (Local) Validation Runner         ║
+║  Semantic Search :: Policies × Bedrock Local Validation Runner  ║
 ╚══════════════════════════════════════════════════════════════════╝
 EOF
   echo
 }
 
-INDEX_DIR="./csv_spot_index"
-CSV_PATH="${CSV_PATH:-./data/sample.csv}"
-SELECTED_BACKEND="spot"
+INDEX_DIR="./policies_bedrock_index"
+SELECTED_BACKEND="bedrock"
+ENABLE_UI_FLAG=false
+READY_STATUS=1
 
 # ------------------------------ Validations -------------------------------- #
 
@@ -118,33 +117,48 @@ parse_args() {
   done
 }
 
-check_csv() {
-  start_spinner "Checking CSV source ($CSV_PATH)"
-  if ! ls $CSV_PATH >/dev/null 2>&1; then
-    stop_spinner "Checking CSV source ($CSV_PATH)"
-    echo "  Error: No CSV file(s) found at: $CSV_PATH"
-    echo "    Set CSV_PATH before running or place a CSV at ./data/sample.csv"
+ensure_bedrock_config() {
+  if [[ -z "${PROVIDER_CONFIG_JSON:-}" ]]; then
+    echo "Error: PROVIDER_CONFIG_JSON is not set."
+    echo "  Export your Bedrock configuration before running:"
+    echo "  export PROVIDER_CONFIG_JSON='{\"region\":\"us-east-1\",\"model\":\"amazon.titan-embed-text-v1\"}'"
     exit 1
   fi
-  local count
-  count="$(ls $CSV_PATH 2>/dev/null | wc -l)"
-  stop_spinner "Checking CSV source ($CSV_PATH)"
-  echo "    Found $count file(s)"
+}
+
+check_postgres() {
+  start_spinner "Verifying PostgreSQL connectivity (semantic_search_test)"
+  if ! psql -d semantic_search_test -c "SELECT 1" >/dev/null 2>&1; then
+    stop_spinner "Verifying PostgreSQL connectivity (semantic_search_test)"
+    echo "  Error: Cannot connect to the 'semantic_search_test' database."
+    echo "    Ensure PostgreSQL is running and the DB is seeded:"
+    echo "    psql -d semantic_search_test -f developer/sql/seed_semantic_search_test.sql"
+    exit 1
+  fi
+  stop_spinner "Verifying PostgreSQL connectivity (semantic_search_test)"
 }
 
 # ------------------------------ Main Tasks --------------------------------- #
 
-generate_csv_spot_index() {
-  start_spinner "Extracting from CSV and embedding via Spot"
-  if uv run python scripts/generate_csv_index.py \
-      --csv "$CSV_PATH" \
-      --detail-fields content \
-      --output "$INDEX_DIR" >/tmp/csv_spot_index.log 2>&1; then
-    stop_spinner "Extracting from CSV and embedding via Spot"
+generate_policies_bedrock_index() {
+  local region="us-east-1"
+  local extracted_region
+  extracted_region="$(uv run python -c "import json,sys; print(json.loads(sys.stdin.read()).get('region',''),end='')" <<<"${PROVIDER_CONFIG_JSON}" 2>/dev/null || true)"
+  if [[ -n "$extracted_region" ]]; then
+    region="$extracted_region"
+  fi
+
+  start_spinner "Extracting from sop + compliance_procedures and embedding via Bedrock (region: $region)"
+  if uv run python scripts/generate_index.py \
+      --source policies \
+      --backend bedrock \
+      --model amazon.titan-embed-text-v1 \
+      --output "$INDEX_DIR" >/tmp/policies_bedrock_index.log 2>&1; then
+    stop_spinner "Extracting from sop + compliance_procedures and embedding via Bedrock (region: $region)"
   else
-    stop_spinner "Extracting from CSV and embedding via Spot"
+    stop_spinner "Extracting from sop + compliance_procedures and embedding via Bedrock (region: $region)"
     echo "  Failed to build index. Full log:"
-    sed 's/^/    /' /tmp/csv_spot_index.log
+    sed 's/^/    /' /tmp/policies_bedrock_index.log
     exit 1
   fi
 }
@@ -155,24 +169,24 @@ inspect_index() {
 import os
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
 
-path = os.environ.get("INDEX_DIR", "./csv_spot_index")
+path = os.environ.get("INDEX_DIR", "./policies_bedrock_index")
 try:
     store = NumpyVectorStore.load(path)
 except Exception as exc:
     raise SystemExit(f"Could not load index at {path!r}: {exc}") from exc
 
-print(f"Index    : {path}")
-print(f"Records  : {len(store._vectors)}")
+print(f"Index   : {path}")
+print(f"Records : {len(store._vectors)}")
 print(f"Dimension: {store.dimension}")
-print(f"Metric   : {store._metric_name}")
+print(f"Metric  : {store._metric_name}")
 
-categories: dict = {}
+tables: dict = {}
 for meta in store._metadata.values():
-    c = meta.get("category", "unknown")
-    categories[c] = categories.get(c, 0) + 1
-print("By category:")
-for cat, count in sorted(categories.items()):
-    print(f"  {cat}: {count} records")
+    t = meta.get("source_table", "unknown")
+    tables[t] = tables.get(t, 0) + 1
+print("By table:")
+for table, count in sorted(tables.items()):
+    print(f"  {table}: {count} records")
 
 print("Sample records:")
 for record_id, meta in list(store._metadata.items())[:4]:
@@ -191,7 +205,13 @@ launch_server() {
   kill_port_occupant 8000
 
   if [[ "$ENABLE_UI_FLAG" == "true" ]]; then
-    export ENABLE_UI=true
+    local tier
+    tier="$(grep -m1 '^tier:' config/app.yaml 2>/dev/null | awk '{print $2}' || echo "basic")"
+    if [[ "$tier" == "standard" || "$tier" == "premium" ]]; then
+      export ENABLE_UI=true
+    else
+      echo "  Basic Tier. Web UI not available"
+    fi
   fi
 
   export VECTOR_STORE_PATH="$INDEX_DIR"
@@ -274,9 +294,9 @@ open_browser() {
 run_query_loop() {
   local base_url="http://localhost:8000"
   echo
-  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "  Interactive Search  —  top 5 results per query  ('q' to quit)"
-  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "  Interactive Search (SOPs + Compliance)  —  top 5 results  ('q' to quit)"
+  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   while true; do
     echo
     printf "  Query> "
@@ -324,12 +344,22 @@ for i, r in enumerate(results, 1):
     meta = r.get('metadata', {})
     score = r['score']
     rid = r['record_id']
-    title = next((str(meta[k]) for k in ['title', 'full_name', 'name'] if k in meta), rid)
+    title = meta.get('title', rid)
+    category = meta.get('category', '')
+    source = meta.get('source_table', '')
     print(f'  {i}. {title}  (score: {score:.4f})')
-    skip = {'title', 'full_name', 'name'}
-    meta_parts = [f'{k}: {v}' for k, v in meta.items() if k not in skip]
-    if meta_parts:
-        print('     ' + '  |  '.join(meta_parts))
+    parts = []
+    if category:
+        parts.append(f'category: {category}')
+    if source:
+        parts.append(f'source: {source}')
+    if parts:
+        print('     ' + '  |  '.join(parts))
+    detail = r.get('detail', {})
+    desc = detail.get('description', '')
+    if desc:
+        preview = (desc[:120] + '...') if len(desc) > 120 else desc
+        print(f'     description: {preview}')
 " 2>/dev/null || echo "  Error: failed to parse response."
   done
 }
@@ -340,18 +370,18 @@ main() {
   parse_args "$@"
   banner
   ensure_repo_root
+  ensure_bedrock_config
   require_command uv
   require_command curl
+  require_command psql
 
   echo "Preparing environment..."
-  echo "  CSV    : $CSV_PATH"
-  echo "  Backend: $SELECTED_BACKEND (local — no AWS required)"
   pause 1
 
-  check_csv
+  check_postgres
   pause 1
 
-  generate_csv_spot_index
+  generate_policies_bedrock_index
   pause 1
 
   inspect_index
@@ -368,8 +398,8 @@ main() {
   echo "  Logs   : /tmp/server.log"
 
   if [[ "$ENABLE_UI_FLAG" == "true" && $READY_STATUS -eq 0 ]]; then
-    echo "  UI     : http://localhost:8000/ui  (opening browser...)"
-    open_browser "http://localhost:8000/ui"
+    echo "  UI     : http://localhost:8000/  (opening browser...)"
+    open_browser "http://localhost:8000/"
   fi
 
   if [[ $READY_STATUS -eq 0 ]]; then
@@ -385,10 +415,10 @@ main() {
 
   cat <<EOF
 
-✅ CSV × Spot validation complete
-  • Source  : $CSV_PATH
+✅ Policies × Bedrock validation complete
+  • Source  : semantic_search_test (sop + compliance_procedures)
   • Index   : $INDEX_DIR
-  • Backend : $SELECTED_BACKEND (local stub — scores are hash-based)
+  • Backend : $SELECTED_BACKEND
   • /healthz and /readyz probed
 
 Refer to developer/guides/data-and-testing-guide.md for subsequent steps.

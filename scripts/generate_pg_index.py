@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -38,7 +39,8 @@ LOGGER = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-CONN = "postgresql+psycopg2:///semantic_search_test"
+CONN_DEFAULT = "postgresql+psycopg2:///semantic_search_test"
+CONN_AUTOCORP = "postgresql+psycopg2:///autocorp"
 DIM = 1536  # Bedrock Titan embed-text-v1 output dimension
 BEDROCK_MODEL = "amazon.titan-embed-text-v1"
 DEFAULT_OUTPUT = "./pg_bedrock_index"
@@ -58,6 +60,7 @@ TABLE_CONFIGS: Dict[str, Dict] = {
         "metadata_fields": ["title", "priority", "status"],
         "detail_fields": ["body"],
         "id_prefix": "ticket",
+        "connection_string": CONN_DEFAULT,
     },
     "candidates": {
         "query": (
@@ -69,8 +72,62 @@ TABLE_CONFIGS: Dict[str, Dict] = {
         "metadata_fields": ["full_name", "location", "years_experience"],
         "detail_fields": ["summary", "skills"],
         "id_prefix": "candidate",
+        "connection_string": CONN_DEFAULT,
+    },
+    "auto_parts": {
+        "query": (
+            "SELECT sku, name, description, vendor, price "
+            "FROM auto_parts ORDER BY sku"
+        ),
+        "text_fields": ["name"],
+        "id_field": "sku",
+        "metadata_fields": ["name", "vendor", "price"],
+        "detail_fields": ["description"],
+        "id_prefix": "autopart",
+        "connection_string": CONN_AUTOCORP,
     },
 }
+
+
+def _coerce_value(v: Any) -> Any:
+    """Convert a single value to a JSON-safe Python type.
+
+    Args:
+        v: Raw value from a database row.
+
+    Returns:
+        A JSON-serializable equivalent (float for Decimal, ISO string for
+        date/datetime, ``str`` for other non-primitive types, or the
+        original value if already serializable).
+    """
+    import datetime
+
+    if isinstance(v, Decimal):
+        return float(v)
+    if isinstance(v, (datetime.date, datetime.datetime)):
+        return v.isoformat()
+    if isinstance(v, (str, int, float, bool, type(None))):
+        return v
+    return str(v)
+
+
+def _coerce_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure every metadata value is JSON-serializable.
+
+    Args:
+        meta: Raw metadata dict (may contain Decimal, date, etc.).
+
+    Returns:
+        A new dict with all values coerced to JSON-safe types.
+    """
+    return {
+        k: (
+            {ik: _coerce_value(iv) for ik, iv in v.items()}
+            if isinstance(v, dict)
+            else _coerce_value(v)
+        )
+        for k, v in meta.items()
+    }
 
 
 def extract_inputs(
@@ -98,6 +155,7 @@ def extract_inputs(
     metadata_fields: List[str] = config.get("metadata_fields", [])
     detail_fields: List[str] = config.get("detail_fields", [])
     detail_field_set: Set[str] = set(detail_fields)
+    conn_str: str = config.get("connection_string", CONN_DEFAULT)
     # Pass combined list to the connector so all fields are extracted.
     all_metadata_fields = metadata_fields + [
         f for f in detail_fields if f not in metadata_fields
@@ -108,7 +166,7 @@ def extract_inputs(
         connector = get_connector(
             "sql",
             {
-                "connection_string": CONN,
+                "connection_string": conn_str,
                 "query": config["query"],
                 "text_fields": config["text_fields"],
                 "id_field": config["id_field"],
@@ -130,7 +188,7 @@ def extract_inputs(
             record_id=f"{prefix}-{r.record_id}",
             text=r.text,
             metadata={
-                **split_metadata(dict(r.metadata), detail_field_set),
+                **_coerce_metadata(split_metadata(dict(r.metadata), detail_field_set)),
                 "source_table": table,
             },
         )

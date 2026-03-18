@@ -1,0 +1,37 @@
+# ── Source: auto_parts ────────────────────────────────────────────────────
+# Indexes auto parts records from the autocorp PostgreSQL database.
+
+connector:
+  type: sql
+  config:
+    connection_string: postgresql+psycopg2:///autocorp
+    query: >-
+      SELECT sku, name, description, vendor, price
+      FROM auto_parts ORDER BY sku
+
+id_field: sku
+id_prefix: autopart
+# Concatenated and embedded into the vector — drives semantic search
+text_fields:
+  - name
+# Stored as visible, filterable tags on result cards
+metadata_fields:
+  - name
+  - vendor
+  - price
+# Hidden until the user expands the drill-down panel
+detail_fields:
+  - description
+
+display:
+  result_card:
+    title_field: name
+    columns:
+      - field: vendor
+        label: Vendor
+      - field: price
+        label: Price
+  record_detail:
+    sections:
+      - field: description
+        label: Description

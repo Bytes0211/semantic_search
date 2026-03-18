@@ -1,0 +1,44 @@
+# ── Source: policies ──────────────────────────────────────────────────────
+# Indexes SOPs and compliance procedures from the semantic_search_test
+# PostgreSQL database. Two SQL queries are combined into a single source
+# via UNION ALL so both tables are searchable together.
+
+connector:
+  type: sql
+  config:
+    connection_string: postgresql+psycopg2:///semantic_search_test
+    query: >-
+      SELECT sop_id::text AS id, title, description, category, 'sop' AS source_table
+      FROM sop
+      UNION ALL
+      SELECT policy_id AS id, title, control_objective AS description, risk_category AS category, 'compliance' AS source_table
+      FROM compliance_procedures
+      ORDER BY id
+
+id_field: id
+id_prefix: policy
+# Concatenated and embedded into the vector — drives semantic search
+text_fields:
+  - title
+  - description
+# Stored as visible, filterable tags on result cards
+metadata_fields:
+  - title
+  - category
+  - source_table
+# Hidden until the user expands the drill-down panel
+detail_fields:
+  - description
+
+display:
+  result_card:
+    title_field: title
+    columns:
+      - field: category
+        label: Category
+      - field: source_table
+        label: Source
+  record_detail:
+    sections:
+      - field: description
+        label: Description
