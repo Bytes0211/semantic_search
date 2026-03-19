@@ -437,13 +437,15 @@ def create_app(
         # When JWT middleware is active, prefer token-derived roles.
         if app.state.jwt_enabled:
             jwt_roles = getattr(raw_request.state, "roles", None)
-            if jwt_roles is not None:
-                if request.roles is not None:
-                    LOGGER.warning(
-                        "request.roles supplied while JWT auth is active — "
-                        "ignoring request body roles in favour of JWT-derived roles."
-                    )
-                request.roles = jwt_roles  # type: ignore[misc]
+            if jwt_roles is None:
+                # Middleware should have set this; treat absence as auth failure.
+                raise HTTPException(status_code=401, detail="Authentication required.")
+            if request.roles is not None:
+                LOGGER.warning(
+                    "request.roles supplied while JWT auth is active — "
+                    "ignoring request body roles in favour of JWT-derived roles."
+                )
+            request.roles = jwt_roles  # type: ignore[misc]
         try:
             return runtime_service.search(request)
         except ValueError as exc:

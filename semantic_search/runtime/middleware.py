@@ -68,8 +68,8 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         import jwt as _jwt  # noqa: PLC0415
 
         super().__init__(app)
-        self._issuer = issuer
-        self._audience = audience
+        self._issuer = issuer or None
+        self._audience = audience or None
         self._roles_claim = roles_claim
         self._bypass_paths = bypass_paths or DEFAULT_BYPASS_PATHS
         self._jwk_client = _jwt.PyJWKClient(jwks_url, cache_keys=True)
