@@ -65,25 +65,14 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             roles_claim: Claim key containing the role list.
             bypass_paths: Routes that skip authentication.
         """
+        import jwt as _jwt  # noqa: PLC0415
+
         super().__init__(app)
-        self._jwks_url = jwks_url
         self._issuer = issuer
         self._audience = audience
         self._roles_claim = roles_claim
         self._bypass_paths = bypass_paths or DEFAULT_BYPASS_PATHS
-        self._jwk_client: Optional[object] = None
-
-    def _get_jwk_client(self) -> object:
-        """Lazily construct and cache the PyJWT JWKS client.
-
-        Returns:
-            A :class:`jwt.PyJWKClient` instance.
-        """
-        if self._jwk_client is None:
-            import jwt  # noqa: PLC0415
-
-            self._jwk_client = jwt.PyJWKClient(self._jwks_url, cache_keys=True)
-        return self._jwk_client
+        self._jwk_client = _jwt.PyJWKClient(jwks_url, cache_keys=True)
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
@@ -139,8 +128,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         try:
             import jwt  # noqa: PLC0415
 
-            client = self._get_jwk_client()
-            signing_key = client.get_signing_key_from_jwt(token)  # type: ignore[union-attr]
+            signing_key = self._jwk_client.get_signing_key_from_jwt(token)
 
             decode_options: dict = {}
             kwargs: dict = {
@@ -176,5 +164,8 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             return []
 
         except Exception as exc:  # noqa: BLE001
-            LOGGER.debug("JWT decode failed: %s", exc)
+            LOGGER.warning(
+                "JWT validation failed: %s", type(exc).__name__,
+            )
+            LOGGER.debug("JWT decode detail: %s", exc)
             return None

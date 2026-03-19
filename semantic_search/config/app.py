@@ -490,9 +490,14 @@ def _resolve_access_control(raw: Dict[str, Any]) -> AccessControlConfig:
 
     # -- JWT settings (Phase B) ---------------------------------------------
     jwt_raw = ac_raw.get("jwt") or {}
-    jwt_jwks_url = os.environ.get("JWT_JWKS_URL") or jwt_raw.get("jwks_url") or None
-    jwt_issuer = os.environ.get("JWT_ISSUER") or jwt_raw.get("issuer") or None
-    jwt_audience = os.environ.get("JWT_AUDIENCE") or jwt_raw.get("audience") or None
+    jwt_jwks_url_env = os.environ.get("JWT_JWKS_URL")
+    jwt_jwks_url = jwt_jwks_url_env if jwt_jwks_url_env is not None else (jwt_raw.get("jwks_url") or None)
+
+    jwt_issuer_env = os.environ.get("JWT_ISSUER")
+    jwt_issuer = jwt_issuer_env if jwt_issuer_env is not None else (jwt_raw.get("issuer") or None)
+
+    jwt_audience_env = os.environ.get("JWT_AUDIENCE")
+    jwt_audience = jwt_audience_env if jwt_audience_env is not None else (jwt_raw.get("audience") or None)
     jwt_roles_claim = (
         os.environ.get("JWT_ROLES_CLAIM")
         or jwt_raw.get("roles_claim", "roles")
