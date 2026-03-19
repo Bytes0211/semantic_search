@@ -223,6 +223,7 @@ launch_server() {
 
   export VECTOR_STORE_PATH="$INDEX_DIR"
   export EMBEDDING_BACKEND="$SELECTED_BACKEND"
+  export SERVE_DOCUMENTS=true
 
   : > /tmp/server.log
   start_spinner "Starting local server"

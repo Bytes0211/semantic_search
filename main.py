@@ -207,14 +207,21 @@ def build_app() -> Any:
         display_configs=display_configs,
     )
 
-    # -- Mount document files directory (for doc_link serving) ---------------
+    # -- Optionally serve document files (gated by SERVE_DOCUMENTS) ----------
     import pathlib
     from fastapi.staticfiles import StaticFiles as _StaticFiles
 
-    doc_root = pathlib.Path(os.environ.get("DOC_ROOT", "data"))
-    if doc_root.is_dir():
-        app.mount("/data", _StaticFiles(directory=str(doc_root)), name="data-files")
-        LOGGER.info("Document files mounted at /data/ (%s)", doc_root)
+    serve_documents = os.environ.get("SERVE_DOCUMENTS", "").lower() in ("true", "1", "yes")
+    if serve_documents:
+        doc_root = pathlib.Path(os.environ.get("DOC_ROOT", "data/documents"))
+        if doc_root.is_dir():
+            app.mount("/data", _StaticFiles(directory=str(doc_root)), name="data-files")
+            LOGGER.info("Document files mounted at /data/ (%s)", doc_root)
+        else:
+            LOGGER.warning(
+                "SERVE_DOCUMENTS=true but '%s' is not a directory — documents not served.",
+                doc_root,
+            )
 
     enable_ui = os.environ.get("ENABLE_UI", "").lower() in ("true", "1", "yes")
     if enable_ui:

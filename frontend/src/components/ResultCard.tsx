@@ -146,15 +146,23 @@ export default function ResultCard({
                 >
                   <span className="text-slate-400">{tag.label}:</span>{" "}
                   {tag.type === "link" && tag.value && tag.value !== "n/a" ? (
-                    <a
-                      href={tag.linkHref || tag.value}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                      title={tag.linkHref || tag.value}
-                    >
-                      {tag.value}
-                    </a>
+                    (() => {
+                      const href = tag.linkHref || tag.value;
+                      const isSafe = /^https?:\/\//i.test(href) || href.startsWith("/");
+                      return isSafe ? (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline"
+                          title={href}
+                        >
+                          {tag.value}
+                        </a>
+                      ) : (
+                        tag.value
+                      );
+                    })()
                   ) : (
                     tag.value
                   )}

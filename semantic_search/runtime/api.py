@@ -202,11 +202,13 @@ class SearchRuntime:
         candidate_count = max(top_k, top_k * self._candidate_multiplier)
 
         # Widen the candidate pool when access control is active so that
-        # post-filter removal doesn't starve the result set.
-        ac_active = self._ac_enabled and request.roles is not None
+        # post-filter removal doesn't starve the result set.  The AC
+        # multiplier is applied on top of candidate_multiplier.
+        ac_active = self._ac_enabled
         if ac_active:
             candidate_count = max(
-                candidate_count, top_k * self._ac_overfetch_multiplier
+                candidate_count,
+                top_k * self._candidate_multiplier * self._ac_overfetch_multiplier,
             )
 
         matches = self._vector_store.query(
@@ -217,7 +219,7 @@ class SearchRuntime:
 
         # --- Access-control post-filter -----------------------------------
         if ac_active:
-            caller_roles = set(request.roles)  # type: ignore[arg-type]
+            caller_roles = set(request.roles) if request.roles is not None else set()
             filtered: list[QueryResult] = []
             for m in matches:
                 record_roles = m.metadata.get(self._ac_roles_field) if m.metadata else None
@@ -241,6 +243,8 @@ class SearchRuntime:
         for match in matches:
             meta = dict(match.metadata)
             raw_detail = meta.pop("_detail", None)
+            if ac_active:
+                meta.pop(self._ac_roles_field, None)  # don't expose ACL to callers
             detail = raw_detail if isinstance(raw_detail, dict) else {}
             results.append(
                 SearchResultItem(

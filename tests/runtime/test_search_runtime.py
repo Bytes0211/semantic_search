@@ -267,20 +267,22 @@ def test_ac_enabled_admin_sees_all(
     assert ids == {"alpha", "bravo", "charlie"}
 
 
-def test_ac_enabled_no_roles_in_request_returns_all(
+def test_ac_enabled_no_roles_in_request_returns_open_access_only(
     ac_search_runtime: SearchRuntime,
     embedding_dimension: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When roles is None in the request, access control is not applied."""
+    """When roles is None, AC defaults to deny — only open-access records visible."""
     _patch_provider_generate(
         ac_search_runtime,
         _normalized_vector([0, 1, 2], embedding_dimension),
         monkeypatch,
     )
-    request = SearchRequest(query="search", top_k=10)  # roles=None
+    request = SearchRequest(query="search", top_k=10)  # roles=None → empty set
     response = ac_search_runtime.search(request)
-    assert response.total_results == 3
+    ids = {r.record_id for r in response.results}
+    # Only charlie (no allowed_roles → open access) should be visible
+    assert ids == {"charlie"}
 
 
 def test_ac_enabled_missing_roles_field_is_open_access(
