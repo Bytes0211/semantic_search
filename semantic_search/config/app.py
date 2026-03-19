@@ -498,10 +498,8 @@ def _resolve_access_control(raw: Dict[str, Any]) -> AccessControlConfig:
 
     jwt_audience_env = os.environ.get("JWT_AUDIENCE")
     jwt_audience = jwt_audience_env if jwt_audience_env is not None else (jwt_raw.get("audience") or None)
-    jwt_roles_claim = (
-        os.environ.get("JWT_ROLES_CLAIM")
-        or jwt_raw.get("roles_claim", "roles")
-    )
+    jwt_roles_claim_env = os.environ.get("JWT_ROLES_CLAIM")
+    jwt_roles_claim = jwt_roles_claim_env if jwt_roles_claim_env is not None else (jwt_raw.get("roles_claim") or "roles")
 
     return AccessControlConfig(
         enabled=enabled,

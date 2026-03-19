@@ -91,8 +91,9 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in self._bypass_paths or request.method == "OPTIONS":
             return await call_next(request)
 
-        # Also bypass paths that start with /data or /assets (static files).
-        if request.url.path.startswith(("/data/", "/assets/")):
+        # Bypass frontend static assets (JS/CSS) — these are public.
+        # /data/ is NOT bypassed: document files require JWT auth.
+        if request.url.path.startswith("/assets/"):
             return await call_next(request)
 
         auth_header = request.headers.get("authorization", "")
