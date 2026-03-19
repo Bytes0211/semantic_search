@@ -207,10 +207,17 @@ def build_app() -> Any:
         display_configs=display_configs,
     )
 
+    # -- Mount document files directory (for doc_link serving) ---------------
+    import pathlib
+    from fastapi.staticfiles import StaticFiles as _StaticFiles
+
+    doc_root = pathlib.Path(os.environ.get("DOC_ROOT", "data"))
+    if doc_root.is_dir():
+        app.mount("/data", _StaticFiles(directory=str(doc_root)), name="data-files")
+        LOGGER.info("Document files mounted at /data/ (%s)", doc_root)
+
     enable_ui = os.environ.get("ENABLE_UI", "").lower() in ("true", "1", "yes")
     if enable_ui:
-        import pathlib
-        from fastapi.staticfiles import StaticFiles as _StaticFiles
         dist = pathlib.Path("frontend/dist")
         if dist.is_dir():
             assets_dir = dist / "assets"

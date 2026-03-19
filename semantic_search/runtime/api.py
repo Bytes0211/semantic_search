@@ -52,6 +52,14 @@ class SearchRequest(BaseModel):
             "Specify as a mapping of field name to either a string or list of acceptable values."
         ),
     )
+    roles: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Caller's roles for access-control filtering (dev/testing). "
+            "Ignored when access control is disabled. In production, roles "
+            "are derived from JWT claims (Phase B)."
+        ),
+    )
 
 
 class SearchResultItem(BaseModel):
@@ -111,6 +119,9 @@ class SearchRuntime:
         default_top_k: int = 10,
         max_top_k: int = 200,
         candidate_multiplier: int = 3,
+        access_control_enabled: bool = False,
+        access_control_roles_field: str = "allowed_roles",
+        access_control_overfetch_multiplier: int = 3,
     ) -> None:
         """Initialise the runtime.
 
@@ -121,6 +132,12 @@ class SearchRuntime:
             max_top_k: Maximum result count permitted per request.
             candidate_multiplier: Multiplier applied to `top_k` to broaden the candidate
                 pool prior to filter application. Must be >= 1.
+            access_control_enabled: When ``True``, results are post-filtered by
+                comparing the caller's roles against each record's roles metadata.
+            access_control_roles_field: Metadata key holding the list of allowed
+                roles on each record.
+            access_control_overfetch_multiplier: Additional multiplier applied to
+                ``top_k`` when access control is active.  Must be >= 1.
 
         Raises:
             ValueError: If configuration values are invalid.
@@ -133,12 +150,17 @@ class SearchRuntime:
             )
         if candidate_multiplier < 1:
             raise ValueError("candidate_multiplier must be at least 1.")
+        if access_control_overfetch_multiplier < 1:
+            raise ValueError("access_control_overfetch_multiplier must be at least 1.")
 
         self._embedding_provider = embedding_provider
         self._vector_store = vector_store
         self._default_top_k = default_top_k
         self._max_top_k = max_top_k
         self._candidate_multiplier = candidate_multiplier
+        self._ac_enabled = access_control_enabled
+        self._ac_roles_field = access_control_roles_field
+        self._ac_overfetch_multiplier = access_control_overfetch_multiplier
 
     def search(self, request: SearchRequest) -> SearchResponse:
         """Execute a semantic search request.
@@ -179,11 +201,38 @@ class SearchRuntime:
         filter_fn = self._build_filter_fn(request.filters)
         candidate_count = max(top_k, top_k * self._candidate_multiplier)
 
+        # Widen the candidate pool when access control is active so that
+        # post-filter removal doesn't starve the result set.
+        ac_active = self._ac_enabled and request.roles is not None
+        if ac_active:
+            candidate_count = max(
+                candidate_count, top_k * self._ac_overfetch_multiplier
+            )
+
         matches = self._vector_store.query(
             query_vector,
             k=candidate_count,
             filter_fn=filter_fn,
         )
+
+        # --- Access-control post-filter -----------------------------------
+        if ac_active:
+            caller_roles = set(request.roles)  # type: ignore[arg-type]
+            filtered: list[QueryResult] = []
+            for m in matches:
+                record_roles = m.metadata.get(self._ac_roles_field) if m.metadata else None
+                if record_roles is None:
+                    # No roles field → open access (visible to everyone)
+                    filtered.append(m)
+                elif isinstance(record_roles, (list, set, tuple)):
+                    if caller_roles & set(record_roles):
+                        filtered.append(m)
+                else:
+                    # Single string value
+                    if str(record_roles) in caller_roles:
+                        filtered.append(m)
+            matches = filtered
+
         matches = matches[:top_k]
 
         elapsed_ms = (perf_counter() - start) * 1000.0

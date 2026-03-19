@@ -152,6 +152,7 @@ def _render_response(
     show_metadata: bool,
     show_vector: bool,
     show_detail: bool = False,
+    exclude_fields: Optional[frozenset[str]] = None,
 ) -> None:
     """Pretty-print the search response for terminal use.
 
@@ -160,6 +161,8 @@ def _render_response(
         show_metadata: Whether to print record metadata blocks.
         show_vector: Whether to print the query embedding vector.
         show_detail: Whether to print detail fields below metadata.
+        exclude_fields: Metadata keys to omit from CLI output (e.g.
+            backing fields used only as link targets in the UI).
     """
     print(f"Query          : {response.query}")
     print(f"Top-K requested: {response.top_k}")
@@ -181,6 +184,8 @@ def _render_response(
         print(f"{index:>2}. {item.record_id}  score={item.score:.6f}")
         if show_metadata and item.metadata:
             for key, value in item.metadata.items():
+                if exclude_fields and key in exclude_fields:
+                    continue
                 print(f"      {key}: {value}")
         if show_detail and item.detail:
             print("      --- detail ---")
@@ -264,6 +269,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print record detail fields (stored under _detail at index time) below metadata.",
     )
     parser.add_argument(
+        "--exclude-field",
+        dest="exclude_fields",
+        action="append",
+        default=[],
+        metavar="FIELD",
+        help=(
+            "Metadata field to hide from CLI output (e.g. backing fields used "
+            "only as link targets in the UI). Repeat for multiple fields."
+        ),
+    )
+    parser.add_argument(
         "--list-backends",
         action="store_true",
         help="List registered embedding backends and exit.",
@@ -319,6 +335,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         show_metadata=not args.hide_metadata,
         show_vector=args.show_vector,
         show_detail=args.show_detail,
+        exclude_fields=frozenset(args.exclude_fields) if args.exclude_fields else None,
     )
     return 0
 

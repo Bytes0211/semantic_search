@@ -23,10 +23,19 @@ class ColumnConfig:
         field: Metadata key to display.
         label: Human-readable label shown in the UI.  Defaults to the
             field name with the first letter capitalised.
+        type: Optional column type hint for UI rendering.  Supported
+            values: ``"link"`` (render as a clickable anchor).  Defaults
+            to ``None`` (plain text).
+        link_field: Optional metadata key whose value supplies the URL
+            for ``type="link"`` columns.  When set, ``field`` provides
+            the display text and ``link_field`` provides the href.
+            When absent, ``field`` is used for both.
     """
 
     field: str
     label: str = ""
+    type: Optional[str] = None
+    link_field: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Auto-derive label from field name when not provided."""
@@ -81,7 +90,15 @@ class DisplayConfig:
         """
         return {
             "title_field": self.title_field,
-            "columns": [{"field": c.field, "label": c.label} for c in self.columns],
+            "columns": [
+                {
+                    "field": c.field,
+                    "label": c.label,
+                    **({"type": c.type} if c.type else {}),
+                    **({"link_field": c.link_field} if c.link_field else {}),
+                }
+                for c in self.columns
+            ],
             "detail_sections": [
                 {"field": s.field, "label": s.label} for s in self.detail_sections
             ],
@@ -117,6 +134,8 @@ def parse_display_config(raw: Dict[str, Any]) -> DisplayConfig:
                 ColumnConfig(
                     field=entry.get("field", ""),
                     label=entry.get("label", ""),
+                    type=entry.get("type"),
+                    link_field=entry.get("link_field"),
                 )
             )
         else:

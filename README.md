@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
-![Tests](https://img.shields.io/badge/tests-292_passing-brightgreen?logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-318_passing-brightgreen?logo=pytest&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111%2B-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
@@ -61,6 +61,7 @@ Keyword search typically retrieves **<40%** of relevant documents in enterprise 
   - **Validation UI** — self-contained single-page web interface served at `/ui` for issuing queries during local development and deployment validation
   - **React Web UI** — React 18 + TypeScript SPA (`frontend/`) with search bar, result cards, dynamic filter panel, pagination, and an optional Premium-tier analytics sidebar; served via S3 + CloudFront or a `StaticFiles` mount on the same container
 - **Security & Observability**
+  - **Role-based access control (ABAC)** — opt-in post-filter on search results; disabled by default (zero overhead for local/dev). When enabled, results are filtered by role intersection against `allowed_roles` metadata before the response is built. Records without roles are treated as open access. Configurable via `access_control:` block in `config/app.yaml` or `ACCESS_CONTROL_ENABLED` env var
   - **Security hardening** — IAM least-privilege permission boundaries, KMS customer-managed keys with auto-rotation for S3/SQS/SNS encryption, CloudTrail audit logging, VPC interface endpoints (Bedrock, ECR, CloudWatch Logs, SQS, SNS) to keep traffic off the public internet, and configurable HTTPS-only egress restrictions on all service security groups
   - **Observability tooling** — Terraform-provisioned CloudWatch dashboards, metrics, alarms, and SNS notifications for end-to-end runtime monitoring
 
@@ -104,6 +105,7 @@ See `docs/PRD-semantic-search.md` for the product requirements.
 - **feature/data-abstraction — Data Abstraction & Preprocessing:** Complete. Six pluggable connectors (`ingestion/` package: CSV, SQL, JSON/JSONL, XML, REST API, MongoDB), text preprocessing pipeline (`preprocessing/` package: TextCleaner, TextChunker, PreprocessingPipeline), sample dataset (`data/sample.csv`), index generation scripts (`scripts/generate_csv_index.py`, `scripts/generate_pg_index.py`), three validation runner scripts (`test_spot_csv_server.sh`, `test_bedrock_json_server.sh`, `test_bedrock_pg_server.sh`), functional process flow doc, and 9 PR review fixes applied. Test suite: 208 passing.
 - **feature/config_enhancements — Configuration Externalization:** Complete. YAML-driven configuration system (`semantic_search/config/` package) with `config/app.yaml` for tier/embedding/server settings and `config/sources/*.yaml` for per-source connector + display configuration. Three-tier feature matrix (Basic/Standard/Premium), model presets with auto-dimension resolution, unified `scripts/generate_index.py`, `--config`/`--app-config` flags on all generate scripts, extended `/v1/config` endpoint, config-driven frontend rendering, and full backward compatibility. Test suite: 261 passing (51 new config tests).
 - **Phase 7 — Preprocessing Integration & Live Search Activation:** Complete. `PreprocessingConfig` dataclass and `build_preprocessing_pipeline()` factory added to `semantic_search/config/app.py` with full `PREPROCESSING_*` env-var override support; `PreprocessingPipeline` wired into all five generate scripts (applied after connector extraction, before embedding); `--no-preprocessing` flag on every script. `Dockerfile` upgraded to a 3-stage multi-stage build (Node 20 frontend builder + Python builder + slim runtime) so `ENABLE_UI=true` serves the React SPA at `/` in a single container. Index build runbook added (`docs/runbooks/index_build.md`). Test suite: 292 passing (24 new wiring tests + 7 config tests).
+- **feature/doc-link-field — Document Link Field & Access Control:** Added `doc_link` column to `sop`/`compliance_procedures` tables; extended `ColumnConfig` with `type: link` for clickable link rendering in result cards (basename as display text, plain text for "No Document Found"). Implemented Phase A of ABAC-gated search results: `AccessControlConfig` (`enabled`/`roles_field`/`overfetch_multiplier`) with YAML + env-var support; `SearchRuntime` post-filters results by role intersection when enabled; disabled by default for zero-overhead local/dev deployments. Test suite: 318 passing.
 
 ## Live Environment (dev)
 

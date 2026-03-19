@@ -24,6 +24,12 @@ export interface SearchResponse {
 export interface ColumnDef {
   field: string;
   label: string;
+  /** Optional type hint for rendering. When `"link"`, the value is rendered
+   *  as a clickable anchor. */
+  type?: string;
+  /** When set on a `type: "link"` column, this metadata key provides the
+   *  URL/href while `field` provides the display text. */
+  link_field?: string;
 }
 
 /** A detail section definition from the display config. */

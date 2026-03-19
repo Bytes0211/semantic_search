@@ -76,6 +76,37 @@ class AppConfigError(ValueError):
 
 
 # ---------------------------------------------------------------------------
+# Access control sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AccessControlConfig:
+    """Role-based access control settings for search result filtering.
+
+    When enabled, search results are post-filtered by comparing the caller's
+    roles against a roles list stored in each record's metadata.  When
+    disabled (the default), the filter is a complete no-op — zero overhead
+    for local deployments and clients who do not require access control.
+
+    Attributes:
+        enabled: Master toggle.  When ``False`` the entire access-control
+            filter is skipped.  Defaults to ``False``.
+        roles_field: Metadata key that holds the list of roles permitted to
+            view a record.  Records missing this key are treated as open
+            access (visible to everyone).  Defaults to ``"allowed_roles"``.
+        overfetch_multiplier: Multiplier applied to ``top_k`` before the
+            vector query when access control is active.  Compensates for
+            results removed by the post-filter.  Must be >= 1.  Defaults
+            to ``3``.
+    """
+
+    enabled: bool = False
+    roles_field: str = "allowed_roles"
+    overfetch_multiplier: int = 3
+
+
+# ---------------------------------------------------------------------------
 # Preprocessing sub-config
 # ---------------------------------------------------------------------------
 
@@ -182,6 +213,7 @@ class AppConfig:
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
+    access_control: AccessControlConfig = field(default_factory=AccessControlConfig)
     models: Dict[str, ModelPreset] = field(
         default_factory=lambda: dict(MODEL_PRESETS),
         repr=False,
@@ -296,12 +328,14 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
             flags[key] = env_val.lower() in ("true", "1", "yes")
 
     preprocessing = _resolve_preprocessing(raw)
+    access_control = _resolve_access_control(raw)
 
     return AppConfig(
         tier=tier,
         embedding=embedding,
         server=server,
         preprocessing=preprocessing,
+        access_control=access_control,
         models=models,
         **flags,
     )
@@ -395,6 +429,54 @@ def _resolve_preprocessing(raw: Dict[str, Any]) -> PreprocessingConfig:
         chunk=chunk,
         chunk_size=chunk_size,
         overlap=overlap,
+    )
+
+
+def _resolve_access_control(raw: Dict[str, Any]) -> AccessControlConfig:
+    """Resolve access-control settings from env overrides merged with YAML.
+
+    Env override mapping:
+
+    * ``ACCESS_CONTROL_ENABLED``             — ``"true"``/``"false"``
+    * ``ACCESS_CONTROL_ROLES_FIELD``         — string
+    * ``ACCESS_CONTROL_OVERFETCH_MULTIPLIER``— integer (>= 1)
+
+    Args:
+        raw: Parsed app YAML.
+
+    Returns:
+        A resolved :class:`AccessControlConfig`.
+
+    Raises:
+        AppConfigError: If ``overfetch_multiplier`` is not a positive integer.
+    """
+    ac_raw = raw.get("access_control") or {}
+
+    env_enabled = os.environ.get("ACCESS_CONTROL_ENABLED")
+    if env_enabled is not None:
+        enabled = env_enabled.lower() in ("true", "1", "yes")
+    else:
+        enabled = bool(ac_raw.get("enabled", False))
+
+    roles_field = (
+        os.environ.get("ACCESS_CONTROL_ROLES_FIELD")
+        or ac_raw.get("roles_field", "allowed_roles")
+    )
+
+    overfetch_multiplier = _parse_int(
+        os.environ.get("ACCESS_CONTROL_OVERFETCH_MULTIPLIER")
+        or ac_raw.get("overfetch_multiplier", 3),
+        "ACCESS_CONTROL_OVERFETCH_MULTIPLIER / access_control.overfetch_multiplier",
+    )
+    if overfetch_multiplier < 1:
+        raise AppConfigError(
+            f"access_control.overfetch_multiplier must be >= 1, got {overfetch_multiplier}."
+        )
+
+    return AccessControlConfig(
+        enabled=enabled,
+        roles_field=roles_field,
+        overfetch_multiplier=overfetch_multiplier,
     )
 
 

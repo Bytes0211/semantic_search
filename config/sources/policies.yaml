@@ -8,10 +8,10 @@ connector:
   config:
     connection_string: postgresql+psycopg2:///semantic_search_test
     query: >-
-      SELECT sop_id::text AS id, title, description, category, 'sop' AS source_table
+      SELECT sop_id::text AS id, title, description, category, 'sop' AS source_table, doc_link, doc_name
       FROM sop
       UNION ALL
-      SELECT policy_id AS id, title, control_objective AS description, risk_category AS category, 'compliance' AS source_table
+      SELECT policy_id AS id, title, control_objective AS description, risk_category AS category, 'compliance' AS source_table, doc_link, doc_name
       FROM compliance_procedures
       ORDER BY id
 
@@ -26,6 +26,8 @@ metadata_fields:
   - title
   - category
   - source_table
+  - doc_link
+  - doc_name
 # Hidden until the user expands the drill-down panel
 detail_fields:
   - description
@@ -38,6 +40,10 @@ display:
         label: Category
       - field: source_table
         label: Source
+      - field: doc_name
+        label: Document
+        type: link
+        link_field: doc_link
   record_detail:
     sections:
       - field: description

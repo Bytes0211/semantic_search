@@ -82,18 +82,24 @@ def vector_store(embedding_dimension: int) -> NumpyVectorStore:
             metadata={
                 "category": "documents",
                 "region": "us-east-1",
+                "allowed_roles": ["admin", "analyst"],
                 "_detail": {"summary": "Alpha document content", "author": "Alice"},
             },
         ),
         VectorRecord(
             record_id="bravo",
             vector=np.eye(embedding_dimension, dtype=np.float32)[1],
-            metadata={"category": "tickets", "region": "eu-west-1"},
+            metadata={
+                "category": "tickets",
+                "region": "eu-west-1",
+                "allowed_roles": ["admin"],
+            },
         ),
         VectorRecord(
             record_id="charlie",
             vector=np.eye(embedding_dimension, dtype=np.float32)[2],
             metadata={"category": "documents", "region": "ap-southeast-2"},
+            # No allowed_roles → open access
         ),
     ]
     store.upsert(records)
@@ -105,11 +111,29 @@ def search_runtime(
     mock_embedding_provider: EmbeddingProvider,
     vector_store: NumpyVectorStore,
 ) -> SearchRuntime:
-    """Construct the SearchRuntime used across runtime-focused tests."""
+    """Construct the SearchRuntime used across runtime-focused tests (AC disabled)."""
     return SearchRuntime(
         mock_embedding_provider,
         vector_store,
         default_top_k=5,
         max_top_k=20,
         candidate_multiplier=5,
+    )
+
+
+@pytest.fixture()
+def ac_search_runtime(
+    mock_embedding_provider: EmbeddingProvider,
+    vector_store: NumpyVectorStore,
+) -> SearchRuntime:
+    """SearchRuntime with access control enabled for AC-specific tests."""
+    return SearchRuntime(
+        mock_embedding_provider,
+        vector_store,
+        default_top_k=5,
+        max_top_k=20,
+        candidate_multiplier=5,
+        access_control_enabled=True,
+        access_control_roles_field="allowed_roles",
+        access_control_overfetch_multiplier=3,
     )

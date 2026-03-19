@@ -217,6 +217,61 @@ uv run python scripts/generate_index.py --no-preprocessing
 
 ---
 
+## Access Control
+
+The `access_control` block enables opt-in, role-based post-filtering of search
+results.  When disabled (the default), the filter is a complete no-op — zero
+overhead for local deployments and clients who do not need it.
+
+```yaml
+access_control:
+  enabled: false            # master toggle; false → no filtering at all
+  roles_field: allowed_roles  # metadata key holding permitted roles per record
+  overfetch_multiplier: 3   # top_k multiplier to compensate for filtered-out results
+```
+
+### Environment Variable Mapping
+
+| Env Var                              | YAML Path                              | Default          |
+|--------------------------------------|----------------------------------------|------------------|
+| `ACCESS_CONTROL_ENABLED`             | `access_control.enabled`               | `false`          |
+| `ACCESS_CONTROL_ROLES_FIELD`         | `access_control.roles_field`           | `allowed_roles`  |
+| `ACCESS_CONTROL_OVERFETCH_MULTIPLIER`| `access_control.overfetch_multiplier`  | `3`              |
+
+### Behaviour
+
+- **`enabled: false` (default)** — all search results are returned to every
+  caller.  No roles checking, no overfetch, no performance cost.
+- **`enabled: true`** — after vector similarity search, results are filtered by
+  comparing the caller's roles against the `allowed_roles` metadata field on
+  each record.  Only records whose roles intersect the caller's roles are
+  returned.  Records **without** the `roles_field` in metadata are treated as
+  **open access** (visible to everyone).
+- **`overfetch_multiplier`** — when access control is active, `top_k` is
+  multiplied by this value before the vector query to compensate for results
+  removed by the post-filter.  Tune based on observed filter rates.
+
+### Usage
+
+To enable access control for a deployment:
+
+```bash
+ACCESS_CONTROL_ENABLED=true uv run python main.py
+```
+
+Callers pass their roles in the search request body (dev/testing; production
+will derive roles from JWT claims):
+
+```json
+{
+  "query": "turnaround experience",
+  "top_k": 10,
+  "roles": ["analyst", "manager"]
+}
+```
+
+---
+
 ## Switching Tiers
 
 Copy an example to `config/app.yaml`:

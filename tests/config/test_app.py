@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from semantic_search.config.app import (
+    AccessControlConfig,
     AppConfig,
     AppConfigError,
     EmbeddingConfig,
@@ -347,3 +348,63 @@ class TestBuildPreprocessingPipeline:
         result = list(pipeline.process(records))
         assert len(result) > 1
         assert all(r.record_id.startswith("r1#chunk-") for r in result)
+
+
+class TestAccessControlConfig:
+    """Verify AccessControlConfig dataclass defaults and YAML/env loading."""
+
+    def test_defaults(self) -> None:
+        """Default config has access control disabled."""
+        cfg = AccessControlConfig()
+        assert cfg.enabled is False
+        assert cfg.roles_field == "allowed_roles"
+        assert cfg.overfetch_multiplier == 3
+
+    def test_app_config_defaults(self) -> None:
+        """AppConfig includes AccessControlConfig with disabled default."""
+        cfg = AppConfig()
+        assert cfg.access_control.enabled is False
+
+    def test_loads_from_yaml(self, tmp_path: Path) -> None:
+        """YAML values are read correctly."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({
+                "access_control": {
+                    "enabled": True,
+                    "roles_field": "security_tags",
+                    "overfetch_multiplier": 5,
+                }
+            })
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.access_control.enabled is True
+        assert cfg.access_control.roles_field == "security_tags"
+        assert cfg.access_control.overfetch_multiplier == 5
+
+    def test_env_overrides(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Environment variables override YAML values."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"access_control": {"enabled": False}})
+        )
+        monkeypatch.setenv("ACCESS_CONTROL_ENABLED", "true")
+        monkeypatch.setenv("ACCESS_CONTROL_ROLES_FIELD", "acl")
+        monkeypatch.setenv("ACCESS_CONTROL_OVERFETCH_MULTIPLIER", "7")
+        cfg = load_app_config(tmp_path)
+        assert cfg.access_control.enabled is True
+        assert cfg.access_control.roles_field == "acl"
+        assert cfg.access_control.overfetch_multiplier == 7
+
+    def test_invalid_overfetch_multiplier_raises(self, tmp_path: Path) -> None:
+        """Overfetch multiplier < 1 must raise AppConfigError."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"access_control": {"overfetch_multiplier": 0}})
+        )
+        with pytest.raises(AppConfigError, match="overfetch_multiplier"):
+            load_app_config(tmp_path)
+
+    def test_missing_yaml_block_uses_defaults(self, tmp_path: Path) -> None:
+        """Absent access_control block falls back to defaults."""
+        (tmp_path / "app.yaml").write_text(yaml.dump({"tier": "standard"}))
+        cfg = load_app_config(tmp_path)
+        assert cfg.access_control.enabled is False
+        assert cfg.access_control.roles_field == "allowed_roles"

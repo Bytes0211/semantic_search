@@ -74,3 +74,18 @@ preprocessing:
   chunk: false
   chunk_size: 512
   overlap: 64
+
+# Access control — role-based post-filter on search results.
+# When disabled (the default), the filter is a complete no-op with zero
+# overhead.  Enable for deployments that require per-record visibility
+# gating.  Records without the roles_field in metadata are treated as
+# open access (visible to everyone).
+#
+# Env override mapping:
+#   ACCESS_CONTROL_ENABLED              → access_control.enabled
+#   ACCESS_CONTROL_ROLES_FIELD          → access_control.roles_field
+#   ACCESS_CONTROL_OVERFETCH_MULTIPLIER → access_control.overfetch_multiplier
+access_control:
+  enabled: false
+  roles_field: allowed_roles
+  overfetch_multiplier: 3

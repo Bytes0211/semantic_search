@@ -191,3 +191,110 @@ def test_search_runtime_empty_detail_when_no_detail_key(
     assert result.record_id == "bravo"
     assert result.detail == {}
     assert "_detail" not in result.metadata
+
+
+# ── Access Control Tests ──────────────────────────────────────────────────
+
+
+def test_ac_disabled_returns_all_results(
+    search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With access control disabled, all results are returned regardless of roles."""
+    _patch_provider_generate(
+        search_runtime,
+        _normalized_vector([0, 1, 2], embedding_dimension),
+        monkeypatch,
+    )
+    request = SearchRequest(query="everything", top_k=10, roles=["viewer"])
+    response = search_runtime.search(request)
+    assert response.total_results == 3
+
+
+def test_ac_enabled_matching_roles(
+    ac_search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Access control filters to records whose allowed_roles intersect caller roles."""
+    _patch_provider_generate(
+        ac_search_runtime,
+        _normalized_vector([0, 1, 2], embedding_dimension),
+        monkeypatch,
+    )
+    # 'analyst' matches alpha; charlie has no roles (open access); bravo requires 'admin'
+    request = SearchRequest(query="search", top_k=10, roles=["analyst"])
+    response = ac_search_runtime.search(request)
+    ids = {r.record_id for r in response.results}
+    assert "alpha" in ids    # analyst is in allowed_roles
+    assert "charlie" in ids  # no allowed_roles → open access
+    assert "bravo" not in ids  # requires admin
+
+
+def test_ac_enabled_no_matching_roles(
+    ac_search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Caller with non-matching roles only sees open-access records."""
+    _patch_provider_generate(
+        ac_search_runtime,
+        _normalized_vector([0, 1, 2], embedding_dimension),
+        monkeypatch,
+    )
+    request = SearchRequest(query="search", top_k=10, roles=["intern"])
+    response = ac_search_runtime.search(request)
+    ids = {r.record_id for r in response.results}
+    # Only charlie (open access) should be visible
+    assert ids == {"charlie"}
+
+
+def test_ac_enabled_admin_sees_all(
+    ac_search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Admin role matches all restricted records; open-access records also visible."""
+    _patch_provider_generate(
+        ac_search_runtime,
+        _normalized_vector([0, 1, 2], embedding_dimension),
+        monkeypatch,
+    )
+    request = SearchRequest(query="search", top_k=10, roles=["admin"])
+    response = ac_search_runtime.search(request)
+    ids = {r.record_id for r in response.results}
+    assert ids == {"alpha", "bravo", "charlie"}
+
+
+def test_ac_enabled_no_roles_in_request_returns_all(
+    ac_search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When roles is None in the request, access control is not applied."""
+    _patch_provider_generate(
+        ac_search_runtime,
+        _normalized_vector([0, 1, 2], embedding_dimension),
+        monkeypatch,
+    )
+    request = SearchRequest(query="search", top_k=10)  # roles=None
+    response = ac_search_runtime.search(request)
+    assert response.total_results == 3
+
+
+def test_ac_enabled_missing_roles_field_is_open_access(
+    ac_search_runtime: SearchRuntime,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Records missing the roles_field are treated as open access."""
+    _patch_provider_generate(
+        ac_search_runtime,
+        _unit_vector(2, embedding_dimension),  # points at charlie (no roles field)
+        monkeypatch,
+    )
+    request = SearchRequest(query="open doc", top_k=1, roles=["any_role"])
+    response = ac_search_runtime.search(request)
+    assert response.total_results == 1
+    assert response.results[0].record_id == "charlie"

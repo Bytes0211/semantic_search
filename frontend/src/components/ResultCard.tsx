@@ -24,12 +24,16 @@ export default function ResultCard({
 }: ResultCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  // Resolve the display config for this item's source (if available)
+  // Resolve the display config for this item's source (if available).
+  // First try an exact match on metadata.source → displayMap key.
+  // Fallback: when only one source config exists, use it for all items.
   const sourceName = item.metadata?.source as string | undefined;
-  const display = useMemo(
-    () => (sourceName && displayMap ? displayMap[sourceName] : undefined),
-    [sourceName, displayMap],
-  );
+  const display = useMemo(() => {
+    if (!displayMap) return undefined;
+    if (sourceName && displayMap[sourceName]) return displayMap[sourceName];
+    const keys = Object.keys(displayMap);
+    return keys.length === 1 ? displayMap[keys[0]] : undefined;
+  }, [sourceName, displayMap]);
 
   // Title: use display title_field if available, else fall back to record_id
   const titleField = display?.title_field;
@@ -46,6 +50,10 @@ export default function ResultCard({
           key: col.field,
           label: col.label,
           value: String(item.metadata[col.field]),
+          type: col.type,
+          linkHref: col.link_field
+            ? String(item.metadata?.[col.link_field] ?? "")
+            : undefined,
         }));
     }
     // Fallback: show all metadata except 'source' and title field
@@ -55,6 +63,8 @@ export default function ResultCard({
         key: k,
         label: k,
         value: String(v),
+        type: undefined as string | undefined,
+        linkHref: undefined as string | undefined,
       }));
   }, [display, item.metadata, titleField]);
 
@@ -135,7 +145,19 @@ export default function ResultCard({
                   className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded"
                 >
                   <span className="text-slate-400">{tag.label}:</span>{" "}
-                  {tag.value}
+                  {tag.type === "link" && tag.value && tag.value !== "n/a" ? (
+                    <a
+                      href={tag.linkHref || tag.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                      title={tag.linkHref || tag.value}
+                    >
+                      {tag.value}
+                    </a>
+                  ) : (
+                    tag.value
+                  )}
                 </li>
               ))}
             </ul>

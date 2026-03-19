@@ -5,25 +5,15 @@ if [[ -z "${PROVIDER_CONFIG_JSON:-}" ]]; then
   export PROVIDER_CONFIG_JSON='{"region":"us-east-1","model":"amazon.titan-embed-text-v1"}'
 fi
 
+
 ###############################################################################
-# test_bedrock_policies_server.sh
+# test_bedrock_json_server.sh
 #
-# Builds a Bedrock-embedded vector index from the semantic_search_test
-# PostgreSQL database (sop + compliance_procedures tables via UNION ALL)
-# and validates the local search server against it.
+# Builds a Bedrock-backed vector index from JSON data in ./data
+# (via config/sources/products.yaml) and validates the local search server.
 #
-# Tables indexed:
-#   • sop                   (title, description → text; title, category → metadata;
-#                            description → detail drill-down)
-#   • compliance_procedures (title, control_objective → text; title, risk_category → metadata;
-#                            control_objective → detail drill-down)
-#
-# Prerequisites
-# -------------
-#   1. PROVIDER_CONFIG_JSON exported with Bedrock credentials + config:
-#        export PROVIDER_CONFIG_JSON='{"region":"us-east-1","model":"amazon.titan-embed-text-v1"}'
-#   2. PostgreSQL running locally with the semantic_search_test database accessible:
-#        psql -d semantic_search_test -c "SELECT 1"
+# The script provides animated feedback, sleeps between major stages,
+# and reports a concise summary at the end.
 ###############################################################################
 
 # ------------------------------- UI Helpers -------------------------------- #
@@ -80,16 +70,15 @@ kill_port_occupant() {
 banner() {
   cat <<'EOF'
 ╔══════════════════════════════════════════════════════════════════╗
-║  Semantic Search :: Policies × Bedrock Local Validation Runner  ║
+║  Semantic Search :: JSON × Bedrock Local Validation Runner        ║
 ╚══════════════════════════════════════════════════════════════════╝
 EOF
   echo
 }
 
-INDEX_DIR="./policies_bedrock_index"
+INDEX_DIR="./bedrock_json_index"
+JSON_PATH="${JSON_PATH:-./data/sample_products.json}"
 SELECTED_BACKEND="bedrock"
-SELECTED_MODEL="amazon.titan-embed-text-v1"
-SELECTED_DIMENSION=1536
 ENABLE_UI_FLAG=false
 READY_STATUS=1
 
@@ -111,61 +100,43 @@ ensure_repo_root() {
 }
 
 parse_args() {
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
+  for arg in "$@"; do
+    case "$arg" in
       --ui) ENABLE_UI_FLAG=true ;;
-      --backend) shift; SELECTED_BACKEND="${1,,}" ;;  # lowercase
-      --model) shift; SELECTED_MODEL="$1" ;;
-      --dimension) shift; SELECTED_DIMENSION="$1" ;;
       *) ;;
     esac
-    shift
   done
-}
-
-ensure_bedrock_config() {
-  if [[ -z "${PROVIDER_CONFIG_JSON:-}" ]]; then
-    echo "Error: PROVIDER_CONFIG_JSON is not set."
-    echo "  Export your Bedrock configuration before running:"
-    echo "  export PROVIDER_CONFIG_JSON='{\"region\":\"us-east-1\",\"model\":\"amazon.titan-embed-text-v1\"}'"
-    exit 1
-  fi
-}
-
-check_postgres() {
-  start_spinner "Verifying PostgreSQL connectivity (semantic_search_test)"
-  if ! psql -d semantic_search_test -c "SELECT 1" >/dev/null 2>&1; then
-    stop_spinner "Verifying PostgreSQL connectivity (semantic_search_test)"
-    echo "  Error: Cannot connect to the 'semantic_search_test' database."
-    echo "    Ensure PostgreSQL is running and the DB is seeded:"
-    echo "    psql -d semantic_search_test -f developer/sql/seed_semantic_search_test.sql"
-    exit 1
-  fi
-  stop_spinner "Verifying PostgreSQL connectivity (semantic_search_test)"
 }
 
 # ------------------------------ Main Tasks --------------------------------- #
 
-generate_policies_bedrock_index() {
-  local region="us-east-1"
-  local extracted_region
-  extracted_region="$(uv run python -c "import json,sys; print(json.loads(sys.stdin.read()).get('region',''),end='')" <<<"${PROVIDER_CONFIG_JSON}" 2>/dev/null || true)"
-  if [[ -n "$extracted_region" ]]; then
-    region="$extracted_region"
+check_json() {
+  start_spinner "Checking JSON source ($JSON_PATH)"
+  if [[ ! -f "$JSON_PATH" ]]; then
+    stop_spinner "Checking JSON source ($JSON_PATH)"
+    echo "  Error: JSON file not found at: $JSON_PATH"
+    echo "    Set JSON_PATH before running or place a JSON file at ./data/sample_products.json"
+    exit 1
   fi
+  local record_count
+  record_count="$(uv run python -c "import json; print(len(json.load(open('$JSON_PATH'))))" 2>/dev/null || echo 0)"
+  stop_spinner "Checking JSON source ($JSON_PATH)"
+  echo "    Found $record_count record(s)"
+}
 
-  start_spinner "Extracting from sop + compliance_procedures and embedding via Bedrock (region: $region)"
+generate_bedrock_json_index() {
+  start_spinner "Extracting from JSON and embedding via Bedrock"
   if uv run python scripts/generate_index.py \
-      --source policies \
-      --backend "$SELECTED_BACKEND" \
-      --model "$SELECTED_MODEL" \
-      --dimension "$SELECTED_DIMENSION" \
-      --output "$INDEX_DIR" >/tmp/policies_bedrock_index.log 2>&1; then
-    stop_spinner "Extracting from sop + compliance_procedures and embedding via Bedrock (region: $region)"
+      --source products \
+      --backend bedrock \
+      --model amazon.titan-embed-text-v1 \
+      --dimension 1536 \
+      --output "$INDEX_DIR" >/tmp/bedrock_json_index.log 2>&1; then
+    stop_spinner "Extracting from JSON and embedding via Bedrock"
   else
-    stop_spinner "Extracting from sop + compliance_procedures and embedding via Bedrock (region: $region)"
+    stop_spinner "Extracting from JSON and embedding via Bedrock"
     echo "  Failed to build index. Full log:"
-    sed 's/^/    /' /tmp/policies_bedrock_index.log
+    sed 's/^/    /' /tmp/bedrock_json_index.log
     exit 1
   fi
 }
@@ -176,24 +147,24 @@ inspect_index() {
 import os
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore
 
-path = os.environ.get("INDEX_DIR", "./policies_bedrock_index")
+path = os.environ.get("INDEX_DIR", "./bedrock_json_index")
 try:
     store = NumpyVectorStore.load(path)
 except Exception as exc:
     raise SystemExit(f"Could not load index at {path!r}: {exc}") from exc
 
-print(f"Index   : {path}")
-print(f"Records : {len(store._vectors)}")
+print(f"Index    : {path}")
+print(f"Records  : {len(store._vectors)}")
 print(f"Dimension: {store.dimension}")
-print(f"Metric  : {store._metric_name}")
+print(f"Metric   : {store._metric_name}")
 
-tables: dict = {}
+categories: dict = {}
 for meta in store._metadata.values():
-    t = meta.get("source_table", "unknown")
-    tables[t] = tables.get(t, 0) + 1
-print("By table:")
-for table, count in sorted(tables.items()):
-    print(f"  {table}: {count} records")
+    c = meta.get("category", "unknown")
+    categories[c] = categories.get(c, 0) + 1
+print("By category:")
+for cat, count in sorted(categories.items()):
+    print(f"  {cat}: {count} records")
 
 print("Sample records:")
 for record_id, meta in list(store._metadata.items())[:4]:
@@ -228,14 +199,14 @@ launch_server() {
   start_spinner "Starting local server"
   uv run python main.py >/tmp/server.log 2>&1 &
   SERVER_PID=$!
-  sleep 3  # allow uvicorn to bind
+  sleep 3  # allow uvicorn to boot
   stop_spinner "Starting local server"
 }
 
 verify_endpoints() {
   local base_url="http://localhost:8000"
 
-  start_spinner "Checking /healthz"
+  start_spinner "Checking /healthz (Section 3.2)"
   local health_status=1
   for _ in {1..10}; do
     if curl -sSf "$base_url/healthz" >/tmp/healthz.log 2>&1; then
@@ -245,13 +216,13 @@ verify_endpoints() {
     sleep 1
   done
   if [[ $health_status -eq 0 ]]; then
-    stop_spinner "Checking /healthz"
+    stop_spinner "Checking /healthz (Section 3.2)"
   else
-    stop_spinner "Checking /healthz"
+    stop_spinner "Checking /healthz (Section 3.2)"
     echo "    /healthz did not return 200 within timeout. See /tmp/healthz.log."
   fi
 
-  start_spinner "Checking /readyz"
+  start_spinner "Checking /readyz (Section 3.2)"
   READY_STATUS=1
   for _ in {1..10}; do
     if curl -sSf "$base_url/readyz" >/tmp/readyz.log 2>&1; then
@@ -260,10 +231,11 @@ verify_endpoints() {
     fi
     sleep 1
   done
+
   if [[ $READY_STATUS -eq 0 ]]; then
-    stop_spinner "Checking /readyz"
+    stop_spinner "Checking /readyz (Section 3.2)"
   else
-    stop_spinner "Checking /readyz"
+    stop_spinner "Checking /readyz (Section 3.2)"
     echo "    /readyz did not return 200 within timeout. See /tmp/readyz.log."
   fi
 }
@@ -301,9 +273,9 @@ open_browser() {
 run_query_loop() {
   local base_url="http://localhost:8000"
   echo
-  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "  Interactive Search (SOPs + Compliance)  —  top 5 results  ('q' to quit)"
-  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "  Interactive Search  —  top 5 results per query  ('q' to quit)"
+  printf '%s\n' "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   while true; do
     echo
     printf "  Query> "
@@ -351,25 +323,12 @@ for i, r in enumerate(results, 1):
     meta = r.get('metadata', {})
     score = r['score']
     rid = r['record_id']
-    title = meta.get('title', rid)
-    category = meta.get('category', '')
-    source = meta.get('source_table', '')
-    doc_name = meta.get('doc_name', '')
+    title = next((str(meta[k]) for k in ['name', 'title', 'full_name'] if k in meta), rid)
     print(f'  {i}. {title}  (score: {score:.4f})')
-    parts = []
-    if category:
-        parts.append(f'category: {category}')
-    if source:
-        parts.append(f'source: {source}')
-    if doc_name and doc_name != 'n/a':
-        parts.append(f'document: {doc_name}')
-    if parts:
-        print('     ' + '  |  '.join(parts))
-    detail = r.get('detail', {})
-    desc = detail.get('description', '')
-    if desc:
-        preview = (desc[:120] + '...') if len(desc) > 120 else desc
-        print(f'     description: {preview}')
+    skip = {'name', 'title', 'full_name'}
+    meta_parts = [f'{k}: {v}' for k, v in meta.items() if k not in skip]
+    if meta_parts:
+        print('     ' + '  |  '.join(meta_parts))
 " 2>/dev/null || echo "  Error: failed to parse response."
   done
 }
@@ -380,18 +339,18 @@ main() {
   parse_args "$@"
   banner
   ensure_repo_root
-  ensure_bedrock_config
   require_command uv
   require_command curl
-  require_command psql
 
   echo "Preparing environment..."
+  echo "  JSON   : $JSON_PATH"
+  echo "  Backend: $SELECTED_BACKEND"
   pause 1
 
-  check_postgres
+  check_json
   pause 1
 
-  generate_policies_bedrock_index
+  generate_bedrock_json_index
   pause 1
 
   inspect_index
@@ -425,8 +384,8 @@ main() {
 
   cat <<EOF
 
-✅ Policies × Bedrock validation complete
-  • Source  : semantic_search_test (sop + compliance_procedures)
+✅ JSON × Bedrock validation complete
+  • Source  : $JSON_PATH
   • Index   : $INDEX_DIR
   • Backend : $SELECTED_BACKEND
   • /healthz and /readyz probed

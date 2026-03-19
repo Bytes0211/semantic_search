@@ -279,6 +279,18 @@ A single Docker image is used for the search application, reused across both run
 - ✅ `terraform validate` passes.
 - ✅ Created `github/ISSUES/iam-security-hardening.md` tracking all deliverables and follow-ups.
 
+### Branch: feature/doc-link-field — Document Link Field & Access Control (Phase A)
+- ✅ Added `doc_link TEXT` column to `sop` and `compliance_procedures` tables in `semantic_search_test` (80% real path, 20% "No Document Found").
+- ✅ Extended `ColumnConfig` in `semantic_search/config/display.py` with optional `type` field (`Optional[str]`); `type: "link"` signals the UI to render as a clickable anchor using the file/URL basename as display text.
+- ✅ Updated `config/sources/policies.yaml` — SQL queries select `doc_link`; added to `metadata_fields`; display column `field: doc_link, label: Document, type: link` after Category and Source.
+- ✅ Updated `ColumnDef` in `frontend/src/types/api.ts` with optional `type?: string`; `ResultCard.tsx` renders link-type columns as `<a>` with basename text; "No Document Found" renders as plain text.
+- ✅ Added `AccessControlConfig` frozen dataclass to `semantic_search/config/app.py` (`enabled: bool = False`, `roles_field: str = "allowed_roles"`, `overfetch_multiplier: int = 3`) with `_resolve_access_control()` helper and env-var overrides (`ACCESS_CONTROL_ENABLED`, `ACCESS_CONTROL_ROLES_FIELD`, `ACCESS_CONTROL_OVERFETCH_MULTIPLIER`).
+- ✅ Wired into `AppConfig` and `load_app_config()`; exported from `semantic_search/config/__init__.py`.
+- ✅ Added `roles: Optional[List[str]]` to `SearchRequest` for dev/testing; `SearchRuntime.search()` post-filters results by role intersection when access control is enabled and roles are provided. Records missing `allowed_roles` treated as open access. Over-fetch multiplier compensates for post-filter loss. When disabled or `roles=None`, filter is a complete no-op.
+- ✅ Added `access_control:` block to `config/app.yaml` (disabled by default) and documented in `config/README.md`.
+- ✅ Authored `github/ISSUES/doc-link-field.md` and `github/ISSUES/abac-gated-search-results.md`.
+- ✅ Test suite: **318 passing** — 12 display config tests + 19 frontend Vitest tests + 6 new AC config tests + 6 new AC runtime tests, 0 regressions.
+
 **Remaining (infrastructure, deferred):**
 - Build and upload FAISS index to S3 → confirm `/readyz → 200` (requires live AWS credentials).
 - Run `semantic-search-eval` and Locust against the live ALB endpoint with a real index.
@@ -288,6 +300,8 @@ A single Docker image is used for the search application, reused across both run
 - Enable `restrict_egress` + `enable_interface_endpoints` for prod environments.
 - Attach `index_write_policy_arn` to a dedicated embedding pipeline role.
 - Add IAM Access Analyzer and Secrets Manager rotation schedules.
+- Re-index policies source to include `doc_link` in vector store metadata.
+- ABAC Phases B–D: JWT identity integration, presigned document links, audit/observability catalog.
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures
