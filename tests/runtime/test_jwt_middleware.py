@@ -98,7 +98,7 @@ def jwt_app(rsa_private_key: rsa.RSAPrivateKey, rsa_public_key: rsa.RSAPublicKey
             )
             raw_roles = payload.get(self._roles_claim)
             if raw_roles is None:
-                raw_roles = payload.get("cognito:groups", [])
+                return []
             if isinstance(raw_roles, list):
                 return [str(r) for r in raw_roles]
             if isinstance(raw_roles, str):
@@ -246,16 +246,58 @@ class TestJWTInvalidToken:
         assert resp.status_code == 401
 
 
-class TestJWTCognitoFallback:
-    """When the primary roles claim is absent, fall back to cognito:groups."""
+class TestJWTCognitoRolesClaim:
+    """Cognito deployers should set roles_claim to 'cognito:groups'."""
 
-    def test_cognito_groups_fallback(
+    def test_cognito_groups_via_config(
+        self,
+        rsa_private_key: rsa.RSAPrivateKey,
+        rsa_public_key: rsa.RSAPublicKey,
+    ) -> None:
+        """Token with cognito:groups works when roles_claim is configured."""
+        app = create_app(jwt_enabled=True)
+
+        def _patched_decode(self_mw: JWTAuthMiddleware, token: str):
+            try:
+                payload = pyjwt.decode(
+                    token, rsa_public_key,
+                    algorithms=["RS256"], options={"verify_aud": False},
+                )
+                raw = payload.get(self_mw._roles_claim)
+                if raw is None:
+                    return []
+                return [str(r) for r in raw] if isinstance(raw, list) else [str(raw)]
+            except Exception:
+                return None
+
+        app.add_middleware(
+            JWTAuthMiddleware,
+            jwks_url="https://example.com/.well-known/jwks.json",
+            roles_claim="cognito:groups",  # explicit config
+        )
+        with patch.object(JWTAuthMiddleware, "_decode_token", _patched_decode):
+            client = TestClient(app, raise_server_exceptions=False)
+            token = _make_token(rsa_private_key, {
+                "sub": "user1",
+                "cognito:groups": ["viewer"],
+                "exp": int(time.time()) + 300,
+                "iat": int(time.time()),
+            })
+            resp = client.post(
+                "/v1/search",
+                json={"query": "test"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            # 503 = auth passed (no runtime)
+            assert resp.status_code == 503
+
+    def test_missing_claim_returns_empty_roles(
         self, jwt_client: TestClient, jwt_private_key: rsa.RSAPrivateKey
     ) -> None:
-        """Token with cognito:groups but no 'roles' claim should pass auth."""
+        """Token without the configured roles claim passes auth with no roles."""
         token = _make_token(jwt_private_key, {
             "sub": "user1",
-            "cognito:groups": ["viewer"],
+            # no 'roles' claim at all
             "exp": int(time.time()) + 300,
             "iat": int(time.time()),
         })
@@ -264,5 +306,5 @@ class TestJWTCognitoFallback:
             json={"query": "test"},
             headers={"Authorization": f"Bearer {token}"},
         )
-        # 503 = auth passed (no runtime)
+        # 503 = auth passed (no runtime), caller has empty roles
         assert resp.status_code == 503

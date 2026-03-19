@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional, Set
 
+import anyio
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -110,14 +111,16 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Missing or invalid Authorization header."},
+                headers={"WWW-Authenticate": 'Bearer realm="semantic-search"'},
             )
 
         token = auth_header[7:]  # strip "Bearer "
-        roles = self._decode_token(token)
+        roles = await anyio.to_thread.run_sync(self._decode_token, token)
         if roles is None:
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or expired token."},
+                headers={"WWW-Authenticate": 'Bearer realm="semantic-search", error="invalid_token"'},
             )
 
         request.state.roles = roles
@@ -135,7 +138,6 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         """
         try:
             import jwt  # noqa: PLC0415
-            from jwt.exceptions import PyJWTError  # noqa: PLC0415
 
             client = self._get_jwk_client()
             signing_key = client.get_signing_key_from_jwt(token)  # type: ignore[union-attr]
@@ -160,8 +162,12 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
             raw_roles = payload.get(self._roles_claim)
             if raw_roles is None:
-                # Fallback to cognito:groups if primary claim is absent.
-                raw_roles = payload.get("cognito:groups", [])
+                LOGGER.warning(
+                    "JWT payload missing configured roles claim '%s' — "
+                    "treating caller as having no roles.",
+                    self._roles_claim,
+                )
+                return []
 
             if isinstance(raw_roles, list):
                 return [str(r) for r in raw_roles]
