@@ -133,7 +133,11 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
             decode_options: dict = {}
             kwargs: dict = {
-                "algorithms": ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
+                "algorithms": [
+                    "RS256", "RS384", "RS512",
+                    "PS256", "PS384", "PS512",
+                    "ES256", "ES384", "ES512",
+                ],
             }
             if self._issuer:
                 kwargs["issuer"] = self._issuer
