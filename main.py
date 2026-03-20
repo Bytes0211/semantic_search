@@ -192,6 +192,19 @@ def build_app() -> Any:
             )
             provider_config = {}
         extra_kwargs: dict = {}
+        # Wire audit logger if configured.
+        au_cfg = getattr(app_config, "audit", None) if app_config else None
+        if au_cfg and au_cfg.enabled:
+            from semantic_search.runtime.audit import AuditLogger
+
+            extra_kwargs["audit_logger"] = AuditLogger(
+                enabled=True, log_grants=au_cfg.log_grants,
+            )
+            LOGGER.info(
+                "Audit logging enabled: log_grants=%s  log_group=%s",
+                au_cfg.log_grants,
+                au_cfg.log_group or "(not set)",
+            )
         # Wire presigner if configured.
         ps_cfg = getattr(app_config, "presign", None) if app_config else None
         if ps_cfg and ps_cfg.enabled:

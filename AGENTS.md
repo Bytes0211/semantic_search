@@ -279,17 +279,34 @@ A single Docker image is used for the search application, reused across both run
 - ✅ `terraform validate` passes.
 - ✅ Created `github/ISSUES/iam-security-hardening.md` tracking all deliverables and follow-ups.
 
-### Branch: feature/doc-link-field — Document Link Field & Access Control (Phase A)
-- ✅ Added `doc_link TEXT` column to `sop` and `compliance_procedures` tables in `semantic_search_test` (80% real path, 20% "No Document Found").
-- ✅ Extended `ColumnConfig` in `semantic_search/config/display.py` with optional `type` field (`Optional[str]`); `type: "link"` signals the UI to render as a clickable anchor using the file/URL basename as display text.
-- ✅ Updated `config/sources/policies.yaml` — SQL queries select `doc_link`; added to `metadata_fields`; display column `field: doc_link, label: Document, type: link` after Category and Source.
-- ✅ Updated `ColumnDef` in `frontend/src/types/api.ts` with optional `type?: string`; `ResultCard.tsx` renders link-type columns as `<a>` with basename text; "No Document Found" renders as plain text.
-- ✅ Added `AccessControlConfig` frozen dataclass to `semantic_search/config/app.py` (`enabled: bool = False`, `roles_field: str = "allowed_roles"`, `overfetch_multiplier: int = 3`) with `_resolve_access_control()` helper and env-var overrides (`ACCESS_CONTROL_ENABLED`, `ACCESS_CONTROL_ROLES_FIELD`, `ACCESS_CONTROL_OVERFETCH_MULTIPLIER`).
-- ✅ Wired into `AppConfig` and `load_app_config()`; exported from `semantic_search/config/__init__.py`.
-- ✅ Added `roles: Optional[List[str]]` to `SearchRequest` for dev/testing; `SearchRuntime.search()` post-filters results by role intersection when access control is enabled and roles are provided. Records missing `allowed_roles` treated as open access. Over-fetch multiplier compensates for post-filter loss. When disabled or `roles=None`, filter is a complete no-op.
-- ✅ Added `access_control:` block to `config/app.yaml` (disabled by default) and documented in `config/README.md`.
-- ✅ Authored `github/ISSUES/doc-link-field.md` and `github/ISSUES/abac-gated-search-results.md`.
-- ✅ Test suite: **318 passing** — 12 display config tests + 19 frontend Vitest tests + 6 new AC config tests + 6 new AC runtime tests, 0 regressions.
+### Branch: feature/doc-link-field — Document Link Field, Link Column Type & ABAC Phase A
+- ✅ Added `doc_link`/`doc_name` columns to `sop`/`compliance_procedures` tables; `link_field` on `ColumnConfig` decouples display text from href.
+- ✅ XSS-safe href allowlist in `ResultCard.tsx`; `SERVE_DOCUMENTS` gated `/data/` static mount; single-config display fallback.
+- ✅ ABAC Phase A: `AccessControlConfig` with deny-by-default (empty roles → deny), multiplicative overfetch (`candidate_multiplier × ac_overfetch_multiplier`), ACL stripped from responses.
+- ✅ Test suite: **318 passing**.
+
+### Branch: feature/abac-phase-b — JWT Identity Integration
+- ✅ `JWTAuthMiddleware` (`semantic_search/runtime/middleware.py`) with JWKS validation via eager `PyJWKClient` init, `WWW-Authenticate` headers per RFC 6750, `anyio.to_thread.run_sync` for non-blocking JWKS fetch, RSA/ECDSA/PSS algorithm support.
+- ✅ Fail-closed endpoint guard: missing `request.state.roles` when JWT enabled → 401.
+- ✅ JWT roles override `request.roles`; missing roles claim logs warning and returns empty set.
+- ✅ `AccessControlConfig` extended with `jwt_jwks_url`, `jwt_issuer`, `jwt_audience`, `jwt_roles_claim`; explicit `is not None` env-var checks for all four.
+- ✅ Added `PyJWT[crypto]>=2.8,<3.0` and `anyio>=4.0,<5.0` to `pyproject.toml`.
+- ✅ `/data/` paths require JWT auth (not bypassed); only `/assets/` is public.
+- ✅ Auth failures logged at WARNING (sanitised) + DEBUG (detail).
+- ✅ Test suite: **332 passing** — 11 JWT middleware tests + 4 config tests.
+
+### Branch: feature/abac-phase-c — Presigned Document Links
+- ✅ `presign_url()` and `create_presigner()` in `semantic_search/runtime/presign.py` — `s3://` → presigned URL, `https://`/`http://`/`/` → passthrough, `n/a`/empty → `None`, graceful error handling.
+- ✅ `PresignConfig` (`enabled`, `ttl_seconds`, `s3_region`, `doc_link_field`) with TTL validation (1s–604800s AWS limit), `PRESIGN_*` env vars.
+- ✅ `SearchRuntime` applies presigning after AC filter — only authorized results trigger S3 calls; `None` results remove `doc_link` key.
+- ✅ Test suite: **353 passing** — 15 presign tests + 7 config tests.
+
+### Branch: feature/abac-phase-d — Audit, Observability & Entitlement Catalog
+- ✅ `AuditLogger` (`semantic_search/runtime/audit.py`) with structured JSON events via dedicated `semantic_search.audit` logger: `ac.filter` (record removed), `ac.grant` (record passed, opt-in), `ac.auth_failure` (JWT failure).
+- ✅ `AuditConfig` (`enabled`, `log_grants`, `log_group`) with `AUDIT_*` env vars; `_resolve_audit()` helper.
+- ✅ Wired into `SearchRuntime` AC post-filter loop; `main.py` activates from config.
+- ✅ Test suite: **366 passing** — 8 audit tests + 5 config tests.
+- ◻️ DynamoDB entitlement catalog and CloudWatch metrics/alarms deferred (infrastructure-layer).
 
 **Remaining (infrastructure, deferred):**
 - Build and upload FAISS index to S3 → confirm `/readyz → 200` (requires live AWS credentials).
@@ -300,8 +317,11 @@ A single Docker image is used for the search application, reused across both run
 - Enable `restrict_egress` + `enable_interface_endpoints` for prod environments.
 - Attach `index_write_policy_arn` to a dedicated embedding pipeline role.
 - Add IAM Access Analyzer and Secrets Manager rotation schedules.
-- Re-index policies source to include `doc_link` in vector store metadata.
-- ABAC Phases B–D: JWT identity integration, presigned document links, audit/observability catalog.
+- DynamoDB entitlement catalog with batch-read integration (Phase D infrastructure).
+- CloudWatch custom metrics (`ACFilteredCount`, `ACFilterRate`, `AuthFailureCount`) and alarms (Phase D infrastructure).
+- CloudTrail data events on the document S3 bucket (Phase D infrastructure).
+- Terraform `modules/auth_gateway/` for Cognito + API Gateway authorizer (Phase B infrastructure).
+- Terraform presign IAM policy for `s3:GetObject` + `kms:Decrypt` on document bucket (Phase C infrastructure).
 
 ## Delivery Phases
 1. **Scaffold Terraform Modules** — implement core + optional modules, publish reference architectures

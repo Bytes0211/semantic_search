@@ -12,6 +12,7 @@ Public API
 
 from semantic_search.config.app import (
     AccessControlConfig,
+    AuditConfig,
     AppConfig,
     AppConfigError,
     EmbeddingConfig,
@@ -50,6 +51,7 @@ from semantic_search.config.source import (
 __all__ = [
     # app
     "AccessControlConfig",
+    "AuditConfig",
     "AppConfig",
     "AppConfigError",
     "build_preprocessing_pipeline",

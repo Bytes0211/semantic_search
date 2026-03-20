@@ -9,6 +9,7 @@ import yaml
 
 from semantic_search.config.app import (
     AccessControlConfig,
+    AuditConfig,
     AppConfig,
     AppConfigError,
     EmbeddingConfig,
@@ -533,3 +534,57 @@ class TestPresignConfig:
         cfg = load_app_config(tmp_path)
         assert cfg.presign.enabled is False
         assert cfg.presign.ttl_seconds == 900
+
+
+class TestAuditConfig:
+    """Verify AuditConfig dataclass defaults and YAML/env loading."""
+
+    def test_defaults(self) -> None:
+        """Default AuditConfig has auditing disabled."""
+        cfg = AuditConfig()
+        assert cfg.enabled is False
+        assert cfg.log_grants is False
+        assert cfg.log_group is None
+
+    def test_app_config_defaults(self) -> None:
+        """AppConfig includes AuditConfig with disabled default."""
+        cfg = AppConfig()
+        assert cfg.audit.enabled is False
+
+    def test_loads_from_yaml(self, tmp_path: Path) -> None:
+        """YAML values are read correctly."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({
+                "audit": {
+                    "enabled": True,
+                    "log_grants": True,
+                    "log_group": "/semantic-search/audit",
+                }
+            })
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.audit.enabled is True
+        assert cfg.audit.log_grants is True
+        assert cfg.audit.log_group == "/semantic-search/audit"
+
+    def test_env_overrides(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Environment variables override YAML values."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"audit": {"enabled": False}})
+        )
+        monkeypatch.setenv("AUDIT_ENABLED", "true")
+        monkeypatch.setenv("AUDIT_LOG_GRANTS", "true")
+        monkeypatch.setenv("AUDIT_LOG_GROUP", "/custom/audit")
+        cfg = load_app_config(tmp_path)
+        assert cfg.audit.enabled is True
+        assert cfg.audit.log_grants is True
+        assert cfg.audit.log_group == "/custom/audit"
+
+    def test_missing_yaml_block_uses_defaults(self, tmp_path: Path) -> None:
+        """Absent audit block falls back to defaults."""
+        (tmp_path / "app.yaml").write_text(yaml.dump({"tier": "standard"}))
+        cfg = load_app_config(tmp_path)
+        assert cfg.audit.enabled is False
+        assert cfg.audit.log_grants is False

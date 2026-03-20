@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from logging import getLogger
 from time import perf_counter
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
+
+if TYPE_CHECKING:
+    from semantic_search.runtime.audit import AuditLogger
 
 try:
     from fastapi import Depends, FastAPI, HTTPException
@@ -126,6 +129,7 @@ class SearchRuntime:
         access_control_overfetch_multiplier: int = 3,
         presign_fn: Optional[Callable[[Optional[str]], Optional[str]]] = None,
         presign_doc_link_field: str = "doc_link",
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         """Initialise the runtime.
 
@@ -145,6 +149,8 @@ class SearchRuntime:
             presign_fn: Optional callable that converts raw ``doc_link`` values
                 to presigned URLs.  When ``None``, links are returned as-is.
             presign_doc_link_field: Metadata key holding the document link.
+            audit_logger: Optional :class:`~semantic_search.runtime.audit.AuditLogger`.
+                When provided and enabled, AC filter/grant decisions are logged.
 
         Raises:
             ValueError: If configuration values are invalid.
@@ -170,6 +176,7 @@ class SearchRuntime:
         self._ac_overfetch_multiplier = access_control_overfetch_multiplier
         self._presign_fn = presign_fn
         self._presign_field = presign_doc_link_field
+        self._audit = audit_logger
 
     def search(self, request: SearchRequest) -> SearchResponse:
         """Execute a semantic search request.
@@ -230,18 +237,40 @@ class SearchRuntime:
         if ac_active:
             caller_roles = set(request.roles) if request.roles is not None else set()
             filtered: list[QueryResult] = []
+            _audit_active = self._audit is not None and self._audit.enabled
             for m in matches:
                 record_roles = m.metadata.get(self._ac_roles_field) if m.metadata else None
+                granted = False
+                grant_reason = ""
                 if record_roles is None:
                     # No roles field → open access (visible to everyone)
                     filtered.append(m)
+                    granted = True
+                    grant_reason = "open_access"
                 elif isinstance(record_roles, (list, set, tuple)):
                     if caller_roles & set(record_roles):
                         filtered.append(m)
+                        granted = True
+                        grant_reason = "role_match"
                 else:
                     # Single string value
                     if str(record_roles) in caller_roles:
                         filtered.append(m)
+                        granted = True
+                        grant_reason = "role_match"
+                # Audit logging
+                if _audit_active:
+                    if granted:
+                        self._audit.log_grant(
+                            m.record_id, list(caller_roles),
+                            user_id=getattr(request, "_audit_user_id", None),
+                            grant_reason=grant_reason,
+                        )
+                    else:
+                        self._audit.log_filter(
+                            m.record_id, record_roles, list(caller_roles),
+                            user_id=getattr(request, "_audit_user_id", None),
+                        )
             matches = filtered
 
         matches = matches[:top_k]
