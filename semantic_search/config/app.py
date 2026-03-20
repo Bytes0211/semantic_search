@@ -432,6 +432,7 @@ def _resolve_audit(raw: Dict[str, Any]) -> AuditConfig:
 
     * ``AUDIT_ENABLED``    — ``"true"``/``"false"``
     * ``AUDIT_LOG_GRANTS`` — ``"true"``/``"false"``
+    * ``AUDIT_LOG_GROUP``  — string (CloudWatch log group name)
 
     Args:
         raw: Parsed app YAML.

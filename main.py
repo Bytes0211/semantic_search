@@ -201,7 +201,9 @@ def build_app() -> Any:
                 enabled=True, log_grants=au_cfg.log_grants,
             )
             LOGGER.info(
-                "Audit logging enabled: log_grants=%s", au_cfg.log_grants,
+                "Audit logging enabled: log_grants=%s  log_group=%s",
+                au_cfg.log_grants,
+                au_cfg.log_group or "(not set)",
             )
         # Wire presigner if configured.
         ps_cfg = getattr(app_config, "presign", None) if app_config else None
