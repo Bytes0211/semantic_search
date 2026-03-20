@@ -197,6 +197,12 @@ def build_app() -> Any:
             "/readyz will return 503 until app.state.runtime is set."
         )
 
+    # -- Determine whether JWT auth middleware should be activated -----------
+    jwt_enabled = False
+    ac_cfg = getattr(app_config, "access_control", None) if app_config else None
+    if ac_cfg and ac_cfg.enabled and ac_cfg.jwt_jwks_url:
+        jwt_enabled = True
+
     # -- Create FastAPI app -------------------------------------------------
     app = create_app(
         runtime,
@@ -205,7 +211,25 @@ def build_app() -> Any:
         search_top_k=search_top_k,
         app_config=app_config,
         display_configs=display_configs,
+        jwt_enabled=jwt_enabled,
     )
+
+    # -- Conditionally add JWT middleware -----------------------------------
+    if jwt_enabled:
+        from semantic_search.runtime.middleware import JWTAuthMiddleware
+
+        app.add_middleware(
+            JWTAuthMiddleware,
+            jwks_url=ac_cfg.jwt_jwks_url,
+            issuer=ac_cfg.jwt_issuer,
+            audience=ac_cfg.jwt_audience,
+            roles_claim=ac_cfg.jwt_roles_claim,
+        )
+        LOGGER.info(
+            "JWT auth middleware activated: jwks_url=%s  roles_claim=%s",
+            ac_cfg.jwt_jwks_url,
+            ac_cfg.jwt_roles_claim,
+        )
 
     # -- Optionally serve document files (gated by SERVE_DOCUMENTS) ----------
     import pathlib

@@ -23,6 +23,8 @@ except ModuleNotFoundError as exc:  # pragma: no cover
         "Install it with `pip install pydantic`."
     ) from exc
 
+from starlette.requests import Request as StarletteRequest
+
 from semantic_search.embeddings.base import EmbeddingInput, EmbeddingProvider
 from semantic_search.vectorstores.faiss_store import NumpyVectorStore, QueryResult
 
@@ -335,6 +337,7 @@ def create_app(
     search_top_k: int = 50,
     app_config: Optional[Any] = None,
     display_configs: Optional[Dict[str, Any]] = None,
+    jwt_enabled: bool = False,
 ) -> FastAPI:
     """Configure and return the FastAPI application serving semantic search.
 
@@ -392,6 +395,7 @@ def create_app(
         description="REST API for semantic search queries backed by vector embeddings.",
     )
     app.state.runtime = runtime
+    app.state.jwt_enabled = jwt_enabled
 
     if cors_origins:
         app.add_middleware(
@@ -427,8 +431,21 @@ def create_app(
     )
     def search_endpoint(
         request: SearchRequest,
+        raw_request: StarletteRequest,
         runtime_service: SearchRuntime = Depends(get_runtime),
     ) -> SearchResponse:
+        # When JWT middleware is active, prefer token-derived roles.
+        if app.state.jwt_enabled:
+            jwt_roles = getattr(raw_request.state, "roles", None)
+            if jwt_roles is None:
+                # Middleware should have set this; treat absence as auth failure.
+                raise HTTPException(status_code=401, detail="Authentication required.")
+            if request.roles is not None:
+                LOGGER.warning(
+                    "request.roles supplied while JWT auth is active — "
+                    "ignoring request body roles in favour of JWT-derived roles."
+                )
+            request.roles = jwt_roles  # type: ignore[misc]
         try:
             return runtime_service.search(request)
         except ValueError as exc:

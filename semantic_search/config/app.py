@@ -99,11 +99,26 @@ class AccessControlConfig:
             vector query when access control is active.  Compensates for
             results removed by the post-filter.  Must be >= 1.  Defaults
             to ``3``.
+        jwt_jwks_url: JWKS endpoint for JWT signature validation.  When
+            set (along with ``enabled=True``), the JWT middleware is
+            activated and caller roles are derived from the token instead
+            of ``SearchRequest.roles``.  Defaults to ``None`` (Phase A
+            behaviour — roles from request body).
+        jwt_issuer: Expected ``iss`` claim in the JWT.  Defaults to ``None``
+            (not validated).
+        jwt_audience: Expected ``aud`` claim in the JWT.  Defaults to
+            ``None`` (not validated).
+        jwt_roles_claim: JWT claim key holding the caller's role list.
+            Defaults to ``"roles"``.
     """
 
     enabled: bool = False
     roles_field: str = "allowed_roles"
     overfetch_multiplier: int = 3
+    jwt_jwks_url: Optional[str] = None
+    jwt_issuer: Optional[str] = None
+    jwt_audience: Optional[str] = None
+    jwt_roles_claim: str = "roles"
 
 
 # ---------------------------------------------------------------------------
@@ -473,10 +488,27 @@ def _resolve_access_control(raw: Dict[str, Any]) -> AccessControlConfig:
             f"access_control.overfetch_multiplier must be >= 1, got {overfetch_multiplier}."
         )
 
+    # -- JWT settings (Phase B) ---------------------------------------------
+    jwt_raw = ac_raw.get("jwt") or {}
+    jwt_jwks_url_env = os.environ.get("JWT_JWKS_URL")
+    jwt_jwks_url = jwt_jwks_url_env if jwt_jwks_url_env is not None else (jwt_raw.get("jwks_url") or None)
+
+    jwt_issuer_env = os.environ.get("JWT_ISSUER")
+    jwt_issuer = jwt_issuer_env if jwt_issuer_env is not None else (jwt_raw.get("issuer") or None)
+
+    jwt_audience_env = os.environ.get("JWT_AUDIENCE")
+    jwt_audience = jwt_audience_env if jwt_audience_env is not None else (jwt_raw.get("audience") or None)
+    jwt_roles_claim_env = os.environ.get("JWT_ROLES_CLAIM")
+    jwt_roles_claim = jwt_roles_claim_env if jwt_roles_claim_env is not None else (jwt_raw.get("roles_claim") or "roles")
+
     return AccessControlConfig(
         enabled=enabled,
         roles_field=roles_field,
         overfetch_multiplier=overfetch_multiplier,
+        jwt_jwks_url=jwt_jwks_url,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+        jwt_roles_claim=jwt_roles_claim,
     )
 
 

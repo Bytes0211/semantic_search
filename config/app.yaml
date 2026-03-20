@@ -89,3 +89,18 @@ access_control:
   enabled: false
   roles_field: allowed_roles
   overfetch_multiplier: 3
+  # JWT identity integration (Phase B) — when jwt.jwks_url is set and
+  # access_control.enabled is true, the JWT middleware is activated.
+  # Caller roles are derived from the token instead of request.roles.
+  #
+  # Env override mapping:
+  #   JWT_JWKS_URL     → access_control.jwt.jwks_url
+  #   JWT_ISSUER       → access_control.jwt.issuer
+  #   JWT_AUDIENCE     → access_control.jwt.audience
+  #   JWT_ROLES_CLAIM  → access_control.jwt.roles_claim
+  #
+  # jwt:
+  #   jwks_url: https://cognito-idp.<region>.amazonaws.com/<pool-id>/.well-known/jwks.json
+  #   issuer: https://cognito-idp.<region>.amazonaws.com/<pool-id>
+  #   audience: <app-client-id>
+  #   roles_claim: cognito:groups

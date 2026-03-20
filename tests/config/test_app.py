@@ -408,3 +408,60 @@ class TestAccessControlConfig:
         cfg = load_app_config(tmp_path)
         assert cfg.access_control.enabled is False
         assert cfg.access_control.roles_field == "allowed_roles"
+
+    # -- JWT fields (Phase B) -----------------------------------------------
+
+    def test_jwt_defaults(self) -> None:
+        """Default AccessControlConfig has no JWT settings."""
+        cfg = AccessControlConfig()
+        assert cfg.jwt_jwks_url is None
+        assert cfg.jwt_issuer is None
+        assert cfg.jwt_audience is None
+        assert cfg.jwt_roles_claim == "roles"
+
+    def test_jwt_from_yaml(self, tmp_path: Path) -> None:
+        """JWT settings are read from the YAML jwt sub-block."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({
+                "access_control": {
+                    "enabled": True,
+                    "jwt": {
+                        "jwks_url": "https://example.com/.well-known/jwks.json",
+                        "issuer": "https://example.com",
+                        "audience": "my-client-id",
+                        "roles_claim": "cognito:groups",
+                    },
+                }
+            })
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.access_control.jwt_jwks_url == "https://example.com/.well-known/jwks.json"
+        assert cfg.access_control.jwt_issuer == "https://example.com"
+        assert cfg.access_control.jwt_audience == "my-client-id"
+        assert cfg.access_control.jwt_roles_claim == "cognito:groups"
+
+    def test_jwt_env_overrides(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """JWT env vars override YAML values."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"access_control": {"jwt": {"jwks_url": "https://old.com/jwks"}}})
+        )
+        monkeypatch.setenv("JWT_JWKS_URL", "https://new.com/jwks")
+        monkeypatch.setenv("JWT_ISSUER", "https://new.com")
+        monkeypatch.setenv("JWT_AUDIENCE", "new-client")
+        monkeypatch.setenv("JWT_ROLES_CLAIM", "groups")
+        cfg = load_app_config(tmp_path)
+        assert cfg.access_control.jwt_jwks_url == "https://new.com/jwks"
+        assert cfg.access_control.jwt_issuer == "https://new.com"
+        assert cfg.access_control.jwt_audience == "new-client"
+        assert cfg.access_control.jwt_roles_claim == "groups"
+
+    def test_jwt_absent_yields_none(self, tmp_path: Path) -> None:
+        """No jwt block → all JWT fields are None/default."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"access_control": {"enabled": True}})
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.access_control.jwt_jwks_url is None
+        assert cfg.access_control.jwt_roles_claim == "roles"
