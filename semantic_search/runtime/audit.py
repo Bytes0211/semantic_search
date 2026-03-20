@@ -125,8 +125,8 @@ class AuditLogger:
         Args:
             payload: Event fields to log.
         """
-        payload["timestamp"] = time.time()
-        AUDIT_LOGGER.info(json.dumps(payload, default=str))
+        entry = {**payload, "timestamp": time.time()}
+        AUDIT_LOGGER.info(json.dumps(entry, default=str))
 
 
 def _serialise(value: Any) -> Any:
