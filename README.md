@@ -15,6 +15,8 @@
 
 A semantic search system that uses LLM-powered embeddings and vector search to enable natural-language queries across internal structured and semi-structured data sources. Replaces rigid keyword search with meaning-aware retrieval.
 
+![semantic search](docs/semantic_search_screenshot.png)
+
 **Key references:**
 - [Product Requirements](docs/PRD-semantic-search.md)
 - [Technical Approach](docs/technical_approach.md)
@@ -36,6 +38,13 @@ Keyword search typically retrieves **<40%** of relevant documents in enterprise 
 | **Why It Fails/Succeeds** | Misses relevant docs because the policy uses different wording (e.g., *expense claim* instead of *reimbursement*) | Understands that *reimbursement* ≈ *expense claim* and *conference travel* ≈ *business trip* |
 | **Impact on User** | Slow, frustrating, incomplete answers | Fast, accurate retrieval of the correct workflow |
 | **Enterprise Pain Point Exposed** | Policies, CRM notes, and spreadsheets use inconsistent terminology | Embeddings unify meaning across heterogeneous data sources |
+
+## Intended Users (Industries)
+
+- Legal
+- Financial
+- Medical
+- Operations
 
 ## Goals
 
@@ -295,6 +304,40 @@ cd frontend && npm install && npm run dev
 ## Key Configuration
 
 Application configuration is managed through YAML files in `config/`:
+
+```yaml
+# Postgres Source Configuration
+
+connector:
+  type: sql
+  config:
+    connection_string: postgresql+psycopg2:///semantic_search_test
+    query: >-
+      SELECT sop_id::text AS id, title, description, category, 'sop' AS source_table, doc_link, doc_name
+      FROM sop
+      UNION ALL
+      SELECT policy_id AS id, title, control_objective AS description, risk_category AS category, 'compliance' AS source_table, doc_link, doc_name
+      FROM compliance_procedures
+      ORDER BY id
+
+id_field: id
+id_prefix: policy
+# Concatenated and embedded into the vector — drives semantic search
+text_fields:
+  - title
+  - description
+# Stored as visible, filterable tags on result cards
+metadata_fields:
+  - title
+  - category
+  - source_table
+  - doc_link
+  - doc_name
+# Hidden until the user expands the drill-down panel
+detail_fields:
+  - description
+
+```
 
 - `config/app.yaml` — tier (`basic`/`standard`/`premium`), embedding backend/model, server settings
 - `config/sources/*.yaml` — per-source connector type, field mapping, and UI display layout
