@@ -238,25 +238,30 @@ class SearchRuntime:
             for m in matches:
                 record_roles = m.metadata.get(self._ac_roles_field) if m.metadata else None
                 granted = False
+                grant_reason = ""
                 if record_roles is None:
                     # No roles field → open access (visible to everyone)
                     filtered.append(m)
                     granted = True
+                    grant_reason = "open_access"
                 elif isinstance(record_roles, (list, set, tuple)):
                     if caller_roles & set(record_roles):
                         filtered.append(m)
                         granted = True
+                        grant_reason = "role_match"
                 else:
                     # Single string value
                     if str(record_roles) in caller_roles:
                         filtered.append(m)
                         granted = True
+                        grant_reason = "role_match"
                 # Audit logging
                 if _audit_active:
                     if granted:
                         self._audit.log_grant(
                             m.record_id, list(caller_roles),
                             user_id=getattr(request, "_audit_user_id", None),
+                            grant_reason=grant_reason,
                         )
                     else:
                         self._audit.log_filter(

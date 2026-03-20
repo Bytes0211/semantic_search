@@ -76,6 +76,7 @@ class AuditLogger:
         caller_roles: Sequence[str],
         *,
         user_id: Optional[str] = None,
+        grant_reason: str = "role_match",
     ) -> None:
         """Emit an ``ac.grant`` event for a record that passed the filter.
 
@@ -85,6 +86,8 @@ class AuditLogger:
             record_id: Identifier of the granted record.
             caller_roles: Roles presented by the caller.
             user_id: JWT ``sub`` claim when available.
+            grant_reason: Why access was granted (``"role_match"`` or
+                ``"open_access"``).
         """
         if not self._enabled or not self._log_grants:
             return
@@ -93,6 +96,7 @@ class AuditLogger:
             "record_id": record_id,
             "caller_roles": list(caller_roles),
             "user_id": user_id,
+            "grant_reason": grant_reason,
         })
 
     def log_auth_failure(
