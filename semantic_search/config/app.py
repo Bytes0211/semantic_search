@@ -573,8 +573,9 @@ def _resolve_presign(raw: Dict[str, Any]) -> PresignConfig:
     else:
         enabled = bool(ps_raw.get("enabled", False))
 
+    ttl_raw = os.environ.get("PRESIGN_TTL_SECONDS")
     ttl_seconds = _parse_int(
-        os.environ.get("PRESIGN_TTL_SECONDS") or ps_raw.get("ttl_seconds", 900),
+        ttl_raw if ttl_raw is not None else ps_raw.get("ttl_seconds", 900),
         "PRESIGN_TTL_SECONDS / presign.ttl_seconds",
     )
     _MAX_PRESIGN_TTL = 604_800  # AWS hard limit (7 days)
