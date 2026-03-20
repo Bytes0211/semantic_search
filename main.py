@@ -70,6 +70,7 @@ def _build_runtime(
     backend: str,
     provider_config: Mapping[str, Any],
     vector_store_path: str,
+    **runtime_kwargs: Any,
 ) -> Any:
     """Construct a SearchRuntime from environment-supplied configuration.
 
@@ -111,7 +112,7 @@ def _build_runtime(
         vector_store_path,
         len(store),
     )
-    return SearchRuntime(provider, store)
+    return SearchRuntime(provider, store, **runtime_kwargs)
 
 
 def build_app() -> Any:
@@ -190,7 +191,23 @@ def build_app() -> Any:
                 "PROVIDER_CONFIG_JSON is not valid JSON — ignoring; using empty config."
             )
             provider_config = {}
-        runtime = _build_runtime(backend, provider_config, vector_store_path)
+        extra_kwargs: dict = {}
+        # Wire presigner if configured.
+        ps_cfg = getattr(app_config, "presign", None) if app_config else None
+        if ps_cfg and ps_cfg.enabled:
+            from semantic_search.runtime.presign import create_presigner
+
+            extra_kwargs["presign_fn"] = create_presigner(
+                ttl_seconds=ps_cfg.ttl_seconds,
+                s3_region=ps_cfg.s3_region,
+            )
+            extra_kwargs["presign_doc_link_field"] = ps_cfg.doc_link_field
+            LOGGER.info(
+                "Presign enabled: ttl=%ds  field=%s",
+                ps_cfg.ttl_seconds,
+                ps_cfg.doc_link_field,
+            )
+        runtime = _build_runtime(backend, provider_config, vector_store_path, **extra_kwargs)
     else:
         LOGGER.warning(
             "VECTOR_STORE_PATH not set — starting without a runtime. "

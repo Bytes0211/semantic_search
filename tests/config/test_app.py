@@ -13,6 +13,7 @@ from semantic_search.config.app import (
     AppConfigError,
     EmbeddingConfig,
     PreprocessingConfig,
+    PresignConfig,
     ServerConfig,
     Tier,
     TIER_FEATURES,
@@ -465,3 +466,70 @@ class TestAccessControlConfig:
         cfg = load_app_config(tmp_path)
         assert cfg.access_control.jwt_jwks_url is None
         assert cfg.access_control.jwt_roles_claim == "roles"
+
+
+class TestPresignConfig:
+    """Verify PresignConfig dataclass defaults and YAML/env loading."""
+
+    def test_defaults(self) -> None:
+        """Default PresignConfig has presigning disabled."""
+        cfg = PresignConfig()
+        assert cfg.enabled is False
+        assert cfg.ttl_seconds == 900
+        assert cfg.s3_region is None
+        assert cfg.doc_link_field == "doc_link"
+
+    def test_app_config_defaults(self) -> None:
+        """AppConfig includes PresignConfig with disabled default."""
+        cfg = AppConfig()
+        assert cfg.presign.enabled is False
+
+    def test_loads_from_yaml(self, tmp_path: Path) -> None:
+        """YAML values are read correctly."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({
+                "presign": {
+                    "enabled": True,
+                    "ttl_seconds": 300,
+                    "s3_region": "eu-west-1",
+                    "doc_link_field": "document_url",
+                }
+            })
+        )
+        cfg = load_app_config(tmp_path)
+        assert cfg.presign.enabled is True
+        assert cfg.presign.ttl_seconds == 300
+        assert cfg.presign.s3_region == "eu-west-1"
+        assert cfg.presign.doc_link_field == "document_url"
+
+    def test_env_overrides(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Environment variables override YAML values."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"presign": {"enabled": False, "ttl_seconds": 900}})
+        )
+        monkeypatch.setenv("PRESIGN_ENABLED", "true")
+        monkeypatch.setenv("PRESIGN_TTL_SECONDS", "60")
+        monkeypatch.setenv("PRESIGN_S3_REGION", "us-west-2")
+        monkeypatch.setenv("PRESIGN_DOC_LINK_FIELD", "file_url")
+        cfg = load_app_config(tmp_path)
+        assert cfg.presign.enabled is True
+        assert cfg.presign.ttl_seconds == 60
+        assert cfg.presign.s3_region == "us-west-2"
+        assert cfg.presign.doc_link_field == "file_url"
+
+    def test_invalid_ttl_raises(self, tmp_path: Path) -> None:
+        """TTL < 1 must raise AppConfigError."""
+        (tmp_path / "app.yaml").write_text(
+            yaml.dump({"presign": {"ttl_seconds": 0}})
+        )
+        with pytest.raises(AppConfigError, match="ttl_seconds"):
+            load_app_config(tmp_path)
+
+    def test_missing_yaml_block_uses_defaults(self, tmp_path: Path) -> None:
+        """Absent presign block falls back to defaults."""
+        (tmp_path / "app.yaml").write_text(yaml.dump({"tier": "standard"}))
+        cfg = load_app_config(tmp_path)
+        assert cfg.presign.enabled is False
+        assert cfg.presign.ttl_seconds == 900

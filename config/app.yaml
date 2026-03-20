@@ -85,6 +85,23 @@ preprocessing:
 #   ACCESS_CONTROL_ENABLED              → access_control.enabled
 #   ACCESS_CONTROL_ROLES_FIELD          → access_control.roles_field
 #   ACCESS_CONTROL_OVERFETCH_MULTIPLIER → access_control.overfetch_multiplier
+# S3 presigned URL generation for document links (Phase C).
+# When enabled, s3:// doc_link values are replaced with time-limited
+# presigned GetObject URLs at query time.  Other schemes (https://,
+# server-relative paths) are passed through unchanged.
+#
+# Env override mapping:
+#   PRESIGN_ENABLED        → presign.enabled
+#   PRESIGN_TTL_SECONDS    → presign.ttl_seconds
+#   PRESIGN_S3_REGION      → presign.s3_region
+#   PRESIGN_DOC_LINK_FIELD → presign.doc_link_field
+#
+# presign:
+#   enabled: true
+#   ttl_seconds: 900
+#   s3_region: us-east-1
+#   doc_link_field: doc_link
+
 access_control:
   enabled: false
   roles_field: allowed_roles

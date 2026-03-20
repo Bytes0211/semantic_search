@@ -124,6 +124,8 @@ class SearchRuntime:
         access_control_enabled: bool = False,
         access_control_roles_field: str = "allowed_roles",
         access_control_overfetch_multiplier: int = 3,
+        presign_fn: Optional[Callable[[Optional[str]], Optional[str]]] = None,
+        presign_doc_link_field: str = "doc_link",
     ) -> None:
         """Initialise the runtime.
 
@@ -140,6 +142,9 @@ class SearchRuntime:
                 roles on each record.
             access_control_overfetch_multiplier: Additional multiplier applied to
                 ``top_k`` when access control is active.  Must be >= 1.
+            presign_fn: Optional callable that converts raw ``doc_link`` values
+                to presigned URLs.  When ``None``, links are returned as-is.
+            presign_doc_link_field: Metadata key holding the document link.
 
         Raises:
             ValueError: If configuration values are invalid.
@@ -163,6 +168,8 @@ class SearchRuntime:
         self._ac_enabled = access_control_enabled
         self._ac_roles_field = access_control_roles_field
         self._ac_overfetch_multiplier = access_control_overfetch_multiplier
+        self._presign_fn = presign_fn
+        self._presign_field = presign_doc_link_field
 
     def search(self, request: SearchRequest) -> SearchResponse:
         """Execute a semantic search request.
@@ -247,6 +254,13 @@ class SearchRuntime:
             raw_detail = meta.pop("_detail", None)
             if ac_active:
                 meta.pop(self._ac_roles_field, None)  # don't expose ACL to callers
+            # Presign doc_link values (Phase C) — only runs on authorized results.
+            if self._presign_fn and self._presign_field in meta:
+                presigned = self._presign_fn(meta.get(self._presign_field))
+                if presigned is not None:
+                    meta[self._presign_field] = presigned
+                else:
+                    meta.pop(self._presign_field, None)
             detail = raw_detail if isinstance(raw_detail, dict) else {}
             results.append(
                 SearchResultItem(

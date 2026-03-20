@@ -122,6 +122,37 @@ class AccessControlConfig:
 
 
 # ---------------------------------------------------------------------------
+# Presign sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class PresignConfig:
+    """S3 presigned URL settings for document links.
+
+    When enabled, ``doc_link`` metadata values with an ``s3://`` scheme are
+    replaced with time-limited presigned ``GetObject`` URLs at query time.
+    Other schemes (``https://``, server-relative paths) are passed through
+    unchanged.  Disabled by default.
+
+    Attributes:
+        enabled: Master toggle.  When ``False``, ``doc_link`` values are
+            returned as-is.  Defaults to ``False``.
+        ttl_seconds: Lifetime of each presigned URL in seconds.  Defaults
+            to ``900`` (15 minutes).
+        s3_region: AWS region for the S3 client.  When ``None``, falls
+            back to ``AWS_DEFAULT_REGION`` or the boto3 session default.
+        doc_link_field: Metadata key holding the document link.  Defaults
+            to ``"doc_link"``.
+    """
+
+    enabled: bool = False
+    ttl_seconds: int = 900
+    s3_region: Optional[str] = None
+    doc_link_field: str = "doc_link"
+
+
+# ---------------------------------------------------------------------------
 # Preprocessing sub-config
 # ---------------------------------------------------------------------------
 
@@ -229,6 +260,7 @@ class AppConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
     access_control: AccessControlConfig = field(default_factory=AccessControlConfig)
+    presign: PresignConfig = field(default_factory=PresignConfig)
     models: Dict[str, ModelPreset] = field(
         default_factory=lambda: dict(MODEL_PRESETS),
         repr=False,
@@ -344,6 +376,7 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
 
     preprocessing = _resolve_preprocessing(raw)
     access_control = _resolve_access_control(raw)
+    presign = _resolve_presign(raw)
 
     return AppConfig(
         tier=tier,
@@ -351,6 +384,7 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
         server=server,
         preprocessing=preprocessing,
         access_control=access_control,
+        presign=presign,
         models=models,
         **flags,
     )
@@ -509,6 +543,58 @@ def _resolve_access_control(raw: Dict[str, Any]) -> AccessControlConfig:
         jwt_issuer=jwt_issuer,
         jwt_audience=jwt_audience,
         jwt_roles_claim=jwt_roles_claim,
+    )
+
+
+def _resolve_presign(raw: Dict[str, Any]) -> PresignConfig:
+    """Resolve presign settings from env overrides merged with YAML.
+
+    Env override mapping:
+
+    * ``PRESIGN_ENABLED``     — ``"true"``/``"false"``
+    * ``PRESIGN_TTL_SECONDS`` — integer (>= 1)
+    * ``PRESIGN_S3_REGION``   — string
+    * ``PRESIGN_DOC_LINK_FIELD`` — string
+
+    Args:
+        raw: Parsed app YAML.
+
+    Returns:
+        A resolved :class:`PresignConfig`.
+
+    Raises:
+        AppConfigError: If ``ttl_seconds`` is not a positive integer.
+    """
+    ps_raw = raw.get("presign") or {}
+
+    env_enabled = os.environ.get("PRESIGN_ENABLED")
+    if env_enabled is not None:
+        enabled = env_enabled.lower() in ("true", "1", "yes")
+    else:
+        enabled = bool(ps_raw.get("enabled", False))
+
+    ttl_seconds = _parse_int(
+        os.environ.get("PRESIGN_TTL_SECONDS") or ps_raw.get("ttl_seconds", 900),
+        "PRESIGN_TTL_SECONDS / presign.ttl_seconds",
+    )
+    if ttl_seconds < 1:
+        raise AppConfigError(
+            f"presign.ttl_seconds must be >= 1, got {ttl_seconds}."
+        )
+
+    s3_region_env = os.environ.get("PRESIGN_S3_REGION")
+    s3_region = s3_region_env if s3_region_env is not None else (ps_raw.get("s3_region") or None)
+
+    doc_link_field = (
+        os.environ.get("PRESIGN_DOC_LINK_FIELD")
+        or ps_raw.get("doc_link_field", "doc_link")
+    )
+
+    return PresignConfig(
+        enabled=enabled,
+        ttl_seconds=ttl_seconds,
+        s3_region=s3_region,
+        doc_link_field=doc_link_field,
     )
 
 
