@@ -79,8 +79,11 @@ def _presign_s3(
         # Parse s3://bucket/key
         without_scheme = s3_uri[5:]  # strip "s3://"
         slash_idx = without_scheme.find("/")
-        if slash_idx < 1:
+        if slash_idx == -1:
             LOGGER.warning("Malformed S3 URI (missing key): '%s'", s3_uri)
+            return None
+        if slash_idx == 0:
+            LOGGER.warning("Malformed S3 URI (empty bucket): '%s'", s3_uri)
             return None
         bucket = without_scheme[:slash_idx]
         key = without_scheme[slash_idx + 1:]

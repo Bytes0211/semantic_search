@@ -577,17 +577,24 @@ def _resolve_presign(raw: Dict[str, Any]) -> PresignConfig:
         os.environ.get("PRESIGN_TTL_SECONDS") or ps_raw.get("ttl_seconds", 900),
         "PRESIGN_TTL_SECONDS / presign.ttl_seconds",
     )
+    _MAX_PRESIGN_TTL = 604_800  # AWS hard limit (7 days)
     if ttl_seconds < 1:
         raise AppConfigError(
             f"presign.ttl_seconds must be >= 1, got {ttl_seconds}."
+        )
+    if ttl_seconds > _MAX_PRESIGN_TTL:
+        raise AppConfigError(
+            f"presign.ttl_seconds must be <= {_MAX_PRESIGN_TTL}, got {ttl_seconds}."
         )
 
     s3_region_env = os.environ.get("PRESIGN_S3_REGION")
     s3_region = s3_region_env if s3_region_env is not None else (ps_raw.get("s3_region") or None)
 
+    doc_link_field_env = os.environ.get("PRESIGN_DOC_LINK_FIELD")
     doc_link_field = (
-        os.environ.get("PRESIGN_DOC_LINK_FIELD")
-        or ps_raw.get("doc_link_field", "doc_link")
+        doc_link_field_env
+        if doc_link_field_env is not None
+        else ps_raw.get("doc_link_field", "doc_link")
     )
 
     return PresignConfig(
