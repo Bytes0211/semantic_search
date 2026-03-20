@@ -153,6 +153,33 @@ class PresignConfig:
 
 
 # ---------------------------------------------------------------------------
+# Audit sub-config
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AuditConfig:
+    """Access-control audit logging settings.
+
+    When enabled, structured JSON log entries are emitted for every AC
+    filter decision via the dedicated ``semantic_search.audit`` logger.
+    Operators can route this logger to a separate CloudWatch log group
+    for retention and access-policy isolation.
+
+    Attributes:
+        enabled: Master toggle.  Defaults to ``False``.
+        log_grants: Also emit events for records that *pass* the filter.
+            Disabled by default to avoid high log volume.
+        log_group: Informational hint for the target CloudWatch log group.
+            Actual routing is handled by the Python logging configuration.
+    """
+
+    enabled: bool = False
+    log_grants: bool = False
+    log_group: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # Preprocessing sub-config
 # ---------------------------------------------------------------------------
 
@@ -261,6 +288,7 @@ class AppConfig:
     preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
     access_control: AccessControlConfig = field(default_factory=AccessControlConfig)
     presign: PresignConfig = field(default_factory=PresignConfig)
+    audit: AuditConfig = field(default_factory=AuditConfig)
     models: Dict[str, ModelPreset] = field(
         default_factory=lambda: dict(MODEL_PRESETS),
         repr=False,
@@ -377,6 +405,7 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
     preprocessing = _resolve_preprocessing(raw)
     access_control = _resolve_access_control(raw)
     presign = _resolve_presign(raw)
+    audit = _resolve_audit(raw)
 
     return AppConfig(
         tier=tier,
@@ -385,6 +414,7 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
         preprocessing=preprocessing,
         access_control=access_control,
         presign=presign,
+        audit=audit,
         models=models,
         **flags,
     )
@@ -393,6 +423,44 @@ def load_app_config(config_dir: Optional[Path] = None) -> AppConfig:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _resolve_audit(raw: Dict[str, Any]) -> AuditConfig:
+    """Resolve audit settings from env overrides merged with YAML.
+
+    Env override mapping:
+
+    * ``AUDIT_ENABLED``    — ``"true"``/``"false"``
+    * ``AUDIT_LOG_GRANTS`` — ``"true"``/``"false"``
+
+    Args:
+        raw: Parsed app YAML.
+
+    Returns:
+        A resolved :class:`AuditConfig`.
+    """
+    au_raw = raw.get("audit") or {}
+
+    env_enabled = os.environ.get("AUDIT_ENABLED")
+    if env_enabled is not None:
+        enabled = env_enabled.lower() in ("true", "1", "yes")
+    else:
+        enabled = bool(au_raw.get("enabled", False))
+
+    env_grants = os.environ.get("AUDIT_LOG_GRANTS")
+    if env_grants is not None:
+        log_grants = env_grants.lower() in ("true", "1", "yes")
+    else:
+        log_grants = bool(au_raw.get("log_grants", False))
+
+    log_group_env = os.environ.get("AUDIT_LOG_GROUP")
+    log_group = log_group_env if log_group_env is not None else (au_raw.get("log_group") or None)
+
+    return AuditConfig(
+        enabled=enabled,
+        log_grants=log_grants,
+        log_group=log_group,
+    )
 
 
 def _resolve_models(raw: Dict[str, Any]) -> Dict[str, ModelPreset]:
@@ -591,8 +659,6 @@ def _resolve_presign(raw: Dict[str, Any]) -> PresignConfig:
     s3_region_env = os.environ.get("PRESIGN_S3_REGION")
     s3_region = s3_region_env if s3_region_env is not None else (ps_raw.get("s3_region") or None)
 
-    doc_link_field_env = os.environ.get("PRESIGN_DOC_LINK_FIELD")
-    doc_link_field = (
     doc_link_field_env = os.environ.get("PRESIGN_DOC_LINK_FIELD")
     doc_link_field = (
         doc_link_field_env

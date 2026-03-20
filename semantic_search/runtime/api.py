@@ -126,6 +126,7 @@ class SearchRuntime:
         access_control_overfetch_multiplier: int = 3,
         presign_fn: Optional[Callable[[Optional[str]], Optional[str]]] = None,
         presign_doc_link_field: str = "doc_link",
+        audit_logger: Optional[Any] = None,
     ) -> None:
         """Initialise the runtime.
 
@@ -145,6 +146,8 @@ class SearchRuntime:
             presign_fn: Optional callable that converts raw ``doc_link`` values
                 to presigned URLs.  When ``None``, links are returned as-is.
             presign_doc_link_field: Metadata key holding the document link.
+            audit_logger: Optional :class:`~semantic_search.runtime.audit.AuditLogger`.
+                When provided and enabled, AC filter/grant decisions are logged.
 
         Raises:
             ValueError: If configuration values are invalid.
@@ -170,6 +173,7 @@ class SearchRuntime:
         self._ac_overfetch_multiplier = access_control_overfetch_multiplier
         self._presign_fn = presign_fn
         self._presign_field = presign_doc_link_field
+        self._audit = audit_logger
 
     def search(self, request: SearchRequest) -> SearchResponse:
         """Execute a semantic search request.
@@ -230,18 +234,35 @@ class SearchRuntime:
         if ac_active:
             caller_roles = set(request.roles) if request.roles is not None else set()
             filtered: list[QueryResult] = []
+            _audit_active = self._audit is not None and self._audit.enabled
             for m in matches:
                 record_roles = m.metadata.get(self._ac_roles_field) if m.metadata else None
+                granted = False
                 if record_roles is None:
                     # No roles field → open access (visible to everyone)
                     filtered.append(m)
+                    granted = True
                 elif isinstance(record_roles, (list, set, tuple)):
                     if caller_roles & set(record_roles):
                         filtered.append(m)
+                        granted = True
                 else:
                     # Single string value
                     if str(record_roles) in caller_roles:
                         filtered.append(m)
+                        granted = True
+                # Audit logging
+                if _audit_active:
+                    if granted:
+                        self._audit.log_grant(
+                            m.record_id, list(caller_roles),
+                            user_id=getattr(request, "_audit_user_id", None),
+                        )
+                    else:
+                        self._audit.log_filter(
+                            m.record_id, record_roles, list(caller_roles),
+                            user_id=getattr(request, "_audit_user_id", None),
+                        )
             matches = filtered
 
         matches = matches[:top_k]

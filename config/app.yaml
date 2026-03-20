@@ -85,6 +85,20 @@ preprocessing:
 #   ACCESS_CONTROL_ENABLED              → access_control.enabled
 #   ACCESS_CONTROL_ROLES_FIELD          → access_control.roles_field
 #   ACCESS_CONTROL_OVERFETCH_MULTIPLIER → access_control.overfetch_multiplier
+# Access-control audit logging (Phase D).
+# When enabled, structured JSON events are emitted for AC filter decisions
+# via the dedicated 'semantic_search.audit' logger.
+#
+# Env override mapping:
+#   AUDIT_ENABLED    → audit.enabled
+#   AUDIT_LOG_GRANTS → audit.log_grants
+#   AUDIT_LOG_GROUP  → audit.log_group
+#
+# audit:
+#   enabled: true
+#   log_grants: false
+#   log_group: /semantic-search/audit
+
 # S3 presigned URL generation for document links (Phase C).
 # When enabled, s3:// doc_link values are replaced with time-limited
 # presigned GetObject URLs at query time.  Other schemes (https://,
