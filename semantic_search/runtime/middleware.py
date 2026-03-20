@@ -14,6 +14,7 @@ import logging
 from typing import List, Optional, Set
 
 import anyio
+import jwt
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -65,14 +66,12 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             roles_claim: Claim key containing the role list.
             bypass_paths: Routes that skip authentication.
         """
-        import jwt as _jwt  # noqa: PLC0415
-
         super().__init__(app)
         self._issuer = issuer or None
         self._audience = audience or None
         self._roles_claim = roles_claim
         self._bypass_paths = bypass_paths or DEFAULT_BYPASS_PATHS
-        self._jwk_client = _jwt.PyJWKClient(jwks_url, cache_keys=True)
+        self._jwk_client = jwt.PyJWKClient(jwks_url, cache_keys=True)
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
@@ -127,8 +126,6 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             on any validation failure.
         """
         try:
-            import jwt  # noqa: PLC0415
-
             signing_key = self._jwk_client.get_signing_key_from_jwt(token)
 
             decode_options: dict = {}
