@@ -593,6 +593,8 @@ def _resolve_presign(raw: Dict[str, Any]) -> PresignConfig:
 
     doc_link_field_env = os.environ.get("PRESIGN_DOC_LINK_FIELD")
     doc_link_field = (
+    doc_link_field_env = os.environ.get("PRESIGN_DOC_LINK_FIELD")
+    doc_link_field = (
         doc_link_field_env
         if doc_link_field_env is not None
         else ps_raw.get("doc_link_field", "doc_link")
