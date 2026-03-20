@@ -73,7 +73,7 @@ class TestAuditGrantEvent:
     """ac.grant events should be gated by log_grants flag."""
 
     def test_grant_emitted_when_enabled(self, audit_records: pytest.LogCaptureFixture) -> None:
-        """log_grant emits when log_grants=True."""
+        """log_grant emits when log_grants=True with default grant_reason."""
         logger = AuditLogger(enabled=True, log_grants=True)
         logger.log_grant("rec-7", ["admin"], user_id="user-xyz")
         assert len(audit_records.records) == 1
@@ -81,6 +81,14 @@ class TestAuditGrantEvent:
         assert payload["event"] == "ac.grant"
         assert payload["record_id"] == "rec-7"
         assert payload["user_id"] == "user-xyz"
+        assert payload["grant_reason"] == "role_match"
+
+    def test_grant_reason_open_access(self, audit_records: pytest.LogCaptureFixture) -> None:
+        """grant_reason='open_access' is preserved in the emitted payload."""
+        logger = AuditLogger(enabled=True, log_grants=True)
+        logger.log_grant("rec-open", [], grant_reason="open_access")
+        payload = json.loads(audit_records.records[0].message)
+        assert payload["grant_reason"] == "open_access"
 
     def test_grant_suppressed_when_disabled(self, audit_records: pytest.LogCaptureFixture) -> None:
         """log_grant is a no-op when log_grants=False."""
