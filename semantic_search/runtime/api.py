@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from logging import getLogger
 from time import perf_counter
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
+
+if TYPE_CHECKING:
+    from semantic_search.runtime.audit import AuditLogger
 
 try:
     from fastapi import Depends, FastAPI, HTTPException
@@ -126,7 +129,7 @@ class SearchRuntime:
         access_control_overfetch_multiplier: int = 3,
         presign_fn: Optional[Callable[[Optional[str]], Optional[str]]] = None,
         presign_doc_link_field: str = "doc_link",
-        audit_logger: Optional[Any] = None,
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         """Initialise the runtime.
 

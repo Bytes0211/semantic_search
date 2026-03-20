@@ -300,3 +300,84 @@ def test_ac_enabled_missing_roles_field_is_open_access(
     response = ac_search_runtime.search(request)
     assert response.total_results == 1
     assert response.results[0].record_id == "charlie"
+
+
+# ── Audit Wiring Integration Tests ─────────────────────────────────────────
+
+import json
+import logging
+from semantic_search.runtime.audit import AuditLogger
+
+
+def test_search_emits_filter_event_for_denied_record(
+    mock_embedding_provider,
+    vector_store,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC filter emits ac.filter audit event for denied records."""
+    audit = AuditLogger(enabled=True, log_grants=False)
+    runtime = SearchRuntime(
+        mock_embedding_provider,
+        vector_store,
+        default_top_k=10,
+        max_top_k=20,
+        candidate_multiplier=5,
+        access_control_enabled=True,
+        audit_logger=audit,
+    )
+    _patch_provider_generate(
+        runtime,
+        _normalized_vector([0, 1, 2], embedding_dimension),
+        monkeypatch,
+    )
+    with caplog.at_level(logging.INFO, logger="semantic_search.audit"):
+        runtime.search(SearchRequest(query="search", top_k=10, roles=["viewer"]))
+
+    filter_events = [
+        json.loads(r.message) for r in caplog.records
+        if '"ac.filter"' in r.message
+    ]
+    # alpha (requires admin/analyst) and bravo (requires admin) should be filtered
+    filtered_ids = {e["record_id"] for e in filter_events}
+    assert "alpha" in filtered_ids
+    assert "bravo" in filtered_ids
+    assert "charlie" not in filtered_ids  # open access → not filtered
+
+
+def test_search_emits_grant_with_open_access_reason(
+    mock_embedding_provider,
+    vector_store,
+    embedding_dimension: int,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC grant emits ac.grant with grant_reason='open_access' for records without roles."""
+    audit = AuditLogger(enabled=True, log_grants=True)
+    runtime = SearchRuntime(
+        mock_embedding_provider,
+        vector_store,
+        default_top_k=10,
+        max_top_k=20,
+        candidate_multiplier=5,
+        access_control_enabled=True,
+        audit_logger=audit,
+    )
+    _patch_provider_generate(
+        runtime,
+        _normalized_vector([0, 1, 2], embedding_dimension),
+        monkeypatch,
+    )
+    with caplog.at_level(logging.INFO, logger="semantic_search.audit"):
+        runtime.search(SearchRequest(query="search", top_k=10, roles=["analyst"]))
+
+    grant_events = [
+        json.loads(r.message) for r in caplog.records
+        if '"ac.grant"' in r.message
+    ]
+    grants_by_id = {e["record_id"]: e for e in grant_events}
+    # charlie has no allowed_roles → open_access
+    assert grants_by_id["charlie"]["grant_reason"] == "open_access"
+    # alpha matched via analyst role → role_match
+    assert grants_by_id["alpha"]["grant_reason"] == "role_match"

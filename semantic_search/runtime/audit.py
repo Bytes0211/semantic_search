@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import json
 import logging
-import time
-from typing import Any, Dict, Optional, Sequence
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Sequence
 
 AUDIT_LOGGER = logging.getLogger("semantic_search.audit")
 
@@ -129,7 +129,7 @@ class AuditLogger:
         Args:
             payload: Event fields to log.
         """
-        entry = {**payload, "timestamp": time.time()}
+        entry = {**payload, "timestamp": datetime.now(timezone.utc).isoformat()}
         AUDIT_LOGGER.info(json.dumps(entry, default=str))
 
 
