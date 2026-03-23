@@ -15,7 +15,7 @@
 
 A semantic search system that uses LLM-powered embeddings and vector search to enable natural-language queries across internal structured and semi-structured data sources. Replaces rigid keyword search with meaning-aware retrieval.
 
-![semantic search](docs/semantic_search_screenshot.png)
+![semantic search](data/semantic_search_screenshot.png)
 
 **Key references:**
 - [Product Requirements](docs/PRD-semantic-search.md)
