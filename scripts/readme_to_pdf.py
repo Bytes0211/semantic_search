@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Split README.md at \\newpage markers and generate dark-mode PDFs using pandoc.
+"""Generate a single 3-page dark-mode PDF from README.md using \\newpage page breaks.
 
 Usage:
-    python scripts/readme_to_pdf.py [--max-pages N]
+    python scripts/readme_to_pdf.py
 
 Requires: pandoc, xelatex (texlive), DejaVu fonts
 """
 
-import argparse
 import os
 import subprocess
 import tempfile
@@ -15,6 +14,7 @@ import tempfile
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 README_PATH = os.path.join(REPO_ROOT, "README.md")
 DOCS_DIR = os.path.join(REPO_ROOT, "docs")
+MAX_PAGES = 3
 
 DARK_MODE_HEADER = r"""
 \usepackage{xcolor}
@@ -55,7 +55,10 @@ def split_readme(path: str) -> list[str]:
 
 
 def clean_page(page_content: str) -> str:
-    """Remove badge/image lines that won't render in PDF.
+    """Remove badge lines that won't render in PDF while keeping images.
+
+    Strips lines starting with ``[![`` (shield badges) but preserves
+    standalone images (``![alt](src)``).
 
     Args:
         page_content: Raw markdown content for a single page.
@@ -67,7 +70,7 @@ def clean_page(page_content: str) -> str:
     cleaned = [
         line
         for line in lines
-        if not line.startswith("[![")
+        if not (line.startswith("![") and "(http" in line)
     ]
     return "\n".join(cleaned)
 
@@ -115,18 +118,14 @@ def generate_pdf(markdown_text: str, output_path: str, header_path: str) -> None
 
 
 def main() -> None:
-    """Split README.md at \\newpage markers and generate dark-mode PDFs."""
-    parser = argparse.ArgumentParser(description="Generate dark-mode PDFs from README.md pages")
-    parser.add_argument(
-        "--max-pages",
-        type=int,
-        default=3,
-        help="Maximum number of pages to generate (default: 3)",
-    )
-    args = parser.parse_args()
+    """Generate separate dark-mode PDFs for the first 3 README.md sections.
 
+    Splits README.md on ``\\newpage`` markers, takes the first 3 sections,
+    cleans badge lines while preserving images, and writes each section
+    to its own PDF.  Content after the third section is ignored.
+    """
     pages = split_readme(README_PATH)
-    num_pages = min(args.max_pages, len(pages))
+    num_pages = min(MAX_PAGES, len(pages))
     print(f"Found {len(pages)} sections, generating {num_pages} PDF(s)")
 
     os.makedirs(DOCS_DIR, exist_ok=True)

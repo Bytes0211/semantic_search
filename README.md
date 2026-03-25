@@ -387,6 +387,12 @@ Infrastructure is managed through Terraform variables:
 - [Web UI (frontend/)](frontend/README.md)
 - [Agent Guidelines](AGENTS.md)
 
+
+## Contact
+
+- Name: Steven Cotton
+- Email: stevenwcotton@gmail.com
+
 ## License
 
-TBD
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
