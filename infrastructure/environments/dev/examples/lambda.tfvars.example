@@ -7,6 +7,18 @@ embedding_backend           = "sagemaker"
 vector_store                = "pgvector"
 ingestion_mode              = "batch"
 
+# ─── Network Configuration ────────────────────────────────────────────────────
+# Enable NAT gateway for private subnet egress (~$32/mo/AZ) OR enable interface 
+# endpoints (~$7/mo per endpoint). Lambda functions require egress for accessing 
+# AWS services (S3, SageMaker, CloudWatch Logs).
+create_nat_gateway         = true
+enable_interface_endpoints = false
+
+# Restrict security group egress to VPC CIDR only (HTTPS port 443)
+# Set to false for unrestricted internet egress (not recommended for production)
+restrict_egress = true
+
+# ─── Lambda Configuration ─────────────────────────────────────────────────────
 # Container image published by the shared build pipeline
 lambda_container_image      = "123456789012.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main"
 lambda_timeout_seconds      = 20

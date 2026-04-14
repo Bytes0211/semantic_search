@@ -180,12 +180,26 @@ resource "aws_security_group" "load_balancer" {
     }
   }
 
-  egress {
-    description = "Outbound to tasks"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "egress" {
+    for_each = var.restrict_egress ? [] : [1]
+    content {
+      description = "Outbound to tasks (unrestricted)"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  dynamic "egress" {
+    for_each = var.restrict_egress ? [1] : []
+    content {
+      description = "Outbound to tasks in VPC"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = [var.vpc_cidr]
+    }
   }
 
   tags = local.common_tags

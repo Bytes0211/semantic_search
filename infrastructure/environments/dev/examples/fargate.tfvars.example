@@ -7,6 +7,18 @@ embedding_backend                 = "bedrock"
 vector_store                      = "faiss"
 ingestion_mode                    = "batch"
 
+# ─── Network Configuration ────────────────────────────────────────────────────
+# Enable NAT gateway for private subnet egress (~$32/mo/AZ) OR enable interface 
+# endpoints (~$7/mo per endpoint). At least one egress path is required when 
+# search_service_assign_public_ip = false.
+create_nat_gateway         = true
+enable_interface_endpoints = false
+
+# Restrict security group egress to VPC CIDR only (HTTPS port 443)
+# Set to false for unrestricted internet egress (not recommended for production)
+restrict_egress = true
+
+# ─── Search Service Configuration ─────────────────────────────────────────────
 search_service_container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main"
 
 # Network access control - restrict to known CIDRs for production
