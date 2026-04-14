@@ -199,12 +199,12 @@ locals {
   private_subnet_ids = [for subnet in aws_subnet.private : subnet.id]
 
   interface_endpoints = var.enable_interface_endpoints ? {
-    sqs             = var.enable_sqs_endpoint     ? "com.amazonaws.${data.aws_availability_zones.available.id}.sqs" : null
-    sns             = var.enable_sns_endpoint     ? "com.amazonaws.${data.aws_availability_zones.available.id}.sns" : null
+    sqs             = var.enable_sqs_endpoint ? "com.amazonaws.${data.aws_availability_zones.available.id}.sqs" : null
+    sns             = var.enable_sns_endpoint ? "com.amazonaws.${data.aws_availability_zones.available.id}.sns" : null
     bedrock_runtime = var.enable_bedrock_endpoint ? "com.amazonaws.${data.aws_availability_zones.available.id}.bedrock-runtime" : null
-    logs            = var.enable_logs_endpoint    ? "com.amazonaws.${data.aws_availability_zones.available.id}.logs" : null
-    ecr_api         = var.enable_ecr_endpoints    ? "com.amazonaws.${data.aws_availability_zones.available.id}.ecr.api" : null
-    ecr_dkr         = var.enable_ecr_endpoints    ? "com.amazonaws.${data.aws_availability_zones.available.id}.ecr.dkr" : null
+    logs            = var.enable_logs_endpoint ? "com.amazonaws.${data.aws_availability_zones.available.id}.logs" : null
+    ecr_api         = var.enable_ecr_endpoints ? "com.amazonaws.${data.aws_availability_zones.available.id}.ecr.api" : null
+    ecr_dkr         = var.enable_ecr_endpoints ? "com.amazonaws.${data.aws_availability_zones.available.id}.ecr.dkr" : null
   } : {}
 
   active_interface_endpoints = { for k, v in local.interface_endpoints : k => v if v != null }

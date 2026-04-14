@@ -10,9 +10,9 @@ terraform {
 }
 
 locals {
-  name_prefix   = "${var.project}-${var.environment}-faiss"
-  store_prefix  = "vector_store/current"
-  common_tags   = merge(
+  name_prefix  = "${var.project}-${var.environment}-faiss"
+  store_prefix = "vector_store/current"
+  common_tags = merge(
     {
       Project     = var.project
       Environment = var.environment
@@ -85,9 +85,9 @@ resource "aws_iam_policy" "index_read" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "ReadFaissIndex"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:ListBucket"]
+        Sid    = "ReadFaissIndex"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:ListBucket"]
         Resource = [
           aws_s3_bucket.index.arn,
           "${aws_s3_bucket.index.arn}/*"

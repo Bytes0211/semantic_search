@@ -18,23 +18,23 @@ locals {
   }, var.tags)
 
   default_environment = {
-    SEARCH_RUNTIME            = "fargate"
-    VECTOR_STORE_ENDPOINT     = var.vector_store_endpoint
-    EMBEDDING_ENDPOINT        = var.embedding_endpoint
-    INGESTION_QUEUE_ARN       = var.ingestion_queue_arn
-    REINDEX_TOPIC_ARN         = var.reindex_topic_arn
-    LOG_LEVEL                 = var.log_level
-    METRICS_NAMESPACE         = var.metrics_namespace
-    ENABLE_REQUEST_TRACING    = tostring(var.enable_request_tracing)
-    ENABLE_QUERY_LOGGING      = tostring(var.enable_query_logging)
-    MAX_CONCURRENT_QUERIES    = tostring(var.max_concurrent_queries)
-    DEFAULT_TOP_K             = tostring(var.default_top_k)
-    MAX_TOP_K                 = tostring(var.max_top_k)
-    CANDIDATE_MULTIPLIER      = tostring(var.candidate_multiplier)
-    HEALTHCHECK_PATH          = var.healthcheck_path
-    READINESS_PATH            = var.readiness_path
-    STARTUP_TIMEOUT_SECONDS   = tostring(var.startup_timeout_seconds)
-    SHUTDOWN_TIMEOUT_SECONDS  = tostring(var.shutdown_timeout_seconds)
+    SEARCH_RUNTIME           = "fargate"
+    VECTOR_STORE_ENDPOINT    = var.vector_store_endpoint
+    EMBEDDING_ENDPOINT       = var.embedding_endpoint
+    INGESTION_QUEUE_ARN      = var.ingestion_queue_arn
+    REINDEX_TOPIC_ARN        = var.reindex_topic_arn
+    LOG_LEVEL                = var.log_level
+    METRICS_NAMESPACE        = var.metrics_namespace
+    ENABLE_REQUEST_TRACING   = tostring(var.enable_request_tracing)
+    ENABLE_QUERY_LOGGING     = tostring(var.enable_query_logging)
+    MAX_CONCURRENT_QUERIES   = tostring(var.max_concurrent_queries)
+    DEFAULT_TOP_K            = tostring(var.default_top_k)
+    MAX_TOP_K                = tostring(var.max_top_k)
+    CANDIDATE_MULTIPLIER     = tostring(var.candidate_multiplier)
+    HEALTHCHECK_PATH         = var.healthcheck_path
+    READINESS_PATH           = var.readiness_path
+    STARTUP_TIMEOUT_SECONDS  = tostring(var.startup_timeout_seconds)
+    SHUTDOWN_TIMEOUT_SECONDS = tostring(var.shutdown_timeout_seconds)
   }
 
   container_environment = merge(local.default_environment, var.environment_variables)
@@ -55,7 +55,7 @@ resource "aws_iam_role" "task_execution" {
   name = "${local.name_prefix}-task-exec-role"
 
   assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
@@ -83,7 +83,7 @@ resource "aws_iam_role_policy" "task_execution_inline" {
   role  = aws_iam_role.task_execution.id
 
   policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [
       {
         Effect   = "Allow"
@@ -98,7 +98,7 @@ resource "aws_iam_role" "task" {
   name = "${local.name_prefix}-task-role"
 
   assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
@@ -112,9 +112,9 @@ resource "aws_iam_role" "task" {
 }
 
 resource "aws_iam_role_policy" "task_deny_guardrail" {
-  count = var.deny_guardrail_policy_json != "" ? 1 : 0
-  name  = "${local.name_prefix}-deny-guardrail"
-  role  = aws_iam_role.task.id
+  count  = var.deny_guardrail_policy_json != "" ? 1 : 0
+  name   = "${local.name_prefix}-deny-guardrail"
+  role   = aws_iam_role.task.id
   policy = var.deny_guardrail_policy_json
 }
 
@@ -124,11 +124,11 @@ resource "aws_security_group" "service" {
   vpc_id      = var.vpc_id
 
   ingress {
-    description      = "ALB to task traffic"
-    from_port        = var.container_port
-    to_port          = var.container_port
-    protocol         = "tcp"
-    security_groups  = [aws_security_group.load_balancer.id]
+    description     = "ALB to task traffic"
+    from_port       = var.container_port
+    to_port         = var.container_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.load_balancer.id]
   }
 
   dynamic "egress" {
@@ -303,11 +303,11 @@ resource "aws_ecs_task_definition" "this" {
 }
 
 resource "aws_ecs_service" "this" {
-  name            = "${local.name_prefix}-service"
-  cluster         = aws_ecs_cluster.this.id
-  task_definition = aws_ecs_task_definition.this.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  name             = "${local.name_prefix}-service"
+  cluster          = aws_ecs_cluster.this.id
+  task_definition  = aws_ecs_task_definition.this.arn
+  desired_count    = var.desired_count
+  launch_type      = "FARGATE"
   platform_version = var.platform_version
 
   deployment_controller {
@@ -351,7 +351,7 @@ resource "aws_appautoscaling_policy" "cpu_target" {
   service_namespace  = aws_appautoscaling_target.ecs.service_namespace
 
   target_tracking_scaling_policy_configuration {
-    target_value       = var.autoscaling_cpu_target
+    target_value = var.autoscaling_cpu_target
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }

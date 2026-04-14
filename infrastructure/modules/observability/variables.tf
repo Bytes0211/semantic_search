@@ -64,10 +64,10 @@ variable "alarm_thresholds" {
       - ecs_unhealthy_host_count: Threshold for unhealthy ECS targets
   EOT
   type = object({
-    search_latency_p95        = optional(number)
-    search_error_rate         = optional(number)
-    lambda_throttles          = optional(number)
-    ecs_unhealthy_host_count  = optional(number)
+    search_latency_p95       = optional(number)
+    search_error_rate        = optional(number)
+    lambda_throttles         = optional(number)
+    ecs_unhealthy_host_count = optional(number)
   })
   default = {}
 }

@@ -156,9 +156,9 @@ resource "aws_iam_policy" "permission_boundary" {
 # ═════════════════════════════════════════════════════════════════════════════
 
 resource "aws_kms_key" "this" {
-  count               = var.enable_kms ? 1 : 0
-  description         = "CMK for ${var.project} ${var.environment} — S3, SQS, SNS, CloudTrail encryption."
-  enable_key_rotation = true
+  count                   = var.enable_kms ? 1 : 0
+  description             = "CMK for ${var.project} ${var.environment} — S3, SQS, SNS, CloudTrail encryption."
+  enable_key_rotation     = true
   deletion_window_in_days = var.kms_deletion_window_days
 
   policy = jsonencode({
@@ -290,7 +290,7 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
         Resource  = "${aws_s3_bucket.cloudtrail[0].arn}/AWSLogs/${local.account_id}/*"
         Condition = {
           StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
+            "s3:x-amz-acl"  = "bucket-owner-full-control"
             "aws:SourceArn" = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${local.name_prefix}-trail"
           }
         }
@@ -344,12 +344,12 @@ resource "aws_iam_role_policy" "cloudtrail_cw" {
 resource "aws_cloudtrail" "this" {
   count = var.enable_cloudtrail ? 1 : 0
 
-  name                       = "${local.name_prefix}-trail"
-  s3_bucket_name             = aws_s3_bucket.cloudtrail[0].id
+  name                          = "${local.name_prefix}-trail"
+  s3_bucket_name                = aws_s3_bucket.cloudtrail[0].id
   include_global_service_events = true
-  is_multi_region_trail      = false
-  enable_log_file_validation = true
-  kms_key_id                 = var.enable_kms ? aws_kms_key.this[0].arn : null
+  is_multi_region_trail         = false
+  enable_log_file_validation    = true
+  kms_key_id                    = var.enable_kms ? aws_kms_key.this[0].arn : null
 
   cloud_watch_logs_group_arn = (
     var.cloudtrail_log_retention_days > 0
@@ -409,9 +409,9 @@ locals {
         Resource = "*"
       },
       {
-        Sid    = "DenyBucketDestruction"
-        Effect = "Deny"
-        Action = ["s3:DeleteBucket", "s3:PutBucketPolicy"]
+        Sid      = "DenyBucketDestruction"
+        Effect   = "Deny"
+        Action   = ["s3:DeleteBucket", "s3:PutBucketPolicy"]
         Resource = "*"
       },
       {
