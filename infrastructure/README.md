@@ -88,6 +88,40 @@ search_service_allowed_ingress_cidrs = [
 search_service_acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abcd1234-..."
 ```
 
+### Private Subnets and NAT Gateway
+
+Fargate tasks run in **private subnets** for security hardening and do not receive public IP addresses. Outbound connectivity to AWS services (ECR, Bedrock, S3) and the internet is provided through a **NAT gateway** or **VPC endpoints**.
+
+**Configuration options:**
+
+1. **NAT Gateway (default)** — Simplest option, provides general internet egress for all services
+   - Cost: ~$32/month per AZ plus data transfer charges
+   - Set `create_nat_gateway = true` in terraform.tfvars
+   - Tasks automatically route all egress through the NAT gateway
+   
+2. **VPC Endpoints** — Lower cost for specific AWS services, no internet egress
+   - Cost: ~$7/month per interface endpoint (e.g., ECR, Bedrock)
+   - Set `enable_interface_endpoints = true` in terraform.tfvars
+   - Requires endpoint configuration for each required service
+   - No internet access (outbound HTTPS is blocked except to AWS services)
+
+**Network flow:**
+- Internet → ALB (public subnets) → Fargate tasks (private subnets)
+- Fargate tasks → NAT gateway (public subnet) → Internet Gateway → AWS services/Internet
+- Or: Fargate tasks → VPC endpoints (private subnets) → AWS services directly
+
+**Required settings:**
+```hcl
+create_nat_gateway              = true   # Or enable_interface_endpoints = true
+search_service_assign_public_ip = false  # Tasks use private IPs only
+```
+
+**Important limitations:**
+- **Single NAT Gateway:** The default configuration provisions one NAT gateway in the first availability zone only. Tasks in other AZs route egress traffic cross-AZ through this single NAT gateway. If that AZ experiences degradation, all private subnet egress fails, despite the multi-AZ ECS deployment. For production environments requiring AZ-level fault isolation, consider enabling VPC interface endpoints instead (`enable_interface_endpoints = true`), which are provisioned per-AZ automatically.
+- **Egress precondition:** Terraform enforces that at least one egress mechanism is enabled when tasks are in private subnets. If `create_nat_gateway`, `enable_interface_endpoints`, and `search_service_assign_public_ip` are all `false`, the apply will fail with a precondition error.
+
+When disabling the NAT gateway or VPC endpoints (e.g., for local testing), tasks can be placed in public subnets with `assign_public_ip = true`, but this configuration **is not recommended for production** as it exposes container instances directly to the internet.
+
 ---
 
 ## Remote State Backend
