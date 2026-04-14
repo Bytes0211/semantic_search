@@ -127,9 +127,10 @@ When disabling the NAT gateway or VPC endpoints (e.g., for local testing), tasks
 The `restrict_egress` variable controls outbound traffic from Fargate tasks, Lambda functions, and the ALB security groups.
 
 **When `restrict_egress = true` (default, recommended):**
-- Fargate task and Lambda security groups: HTTPS egress (port 443) scoped to VPC CIDR only
+- Fargate task and Lambda security groups: HTTPS egress (port 443) only, all destinations
 - ALB security group: TCP egress on container port scoped to VPC CIDR only (for forwarding to tasks)
-- Requires either NAT gateway or VPC endpoints for AWS service access
+- Blocks all non-HTTPS protocols and ports
+- Works with both NAT gateway (public endpoints) and VPC endpoints (private endpoints)
 - Minimizes blast radius if a workload is compromised
 
 **When `restrict_egress = false` (opt-in, development only):**
@@ -140,7 +141,7 @@ The `restrict_egress` variable controls outbound traffic from Fargate tasks, Lam
 **Example production configuration:**
 ```hcl
 create_nat_gateway = true   # Provides egress for all AWS services
-restrict_egress    = true   # Default; scopes all security group egress to VPC CIDR
+restrict_egress    = true   # Default; restricts protocols/ports (HTTPS only)
 ```
 
 **To disable egress restrictions (development only):**
@@ -148,9 +149,9 @@ restrict_egress    = true   # Default; scopes all security group egress to VPC C
 restrict_egress = false   # Allows unrestricted egress — NOT for production
 ```
 
-**Prerequisites for `restrict_egress = true`:**
+**Prerequisites:**
 - At least one egress path must be provisioned (`create_nat_gateway = true` OR `enable_interface_endpoints = true`)
-- VPC CIDR must be set (automatically provided via `var.vpc_cidr`)
+- When using Fargate, VPC CIDR must be set for ALB egress rules (automatically provided via `var.vpc_cidr`)
 
 ---
 

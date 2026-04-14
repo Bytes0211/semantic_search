@@ -311,13 +311,13 @@ variable "deny_guardrail_policy_json" {
 
 variable "restrict_egress" {
   type        = bool
-  description = "When true, replace the all-traffic egress rule on the service SG with HTTPS-only (443) to the VPC CIDR."
+  description = "When true, restrict service SG to HTTPS-only (443) egress and ALB SG to container-port-only egress within VPC."
   default     = true
 }
 
 variable "vpc_cidr" {
   type        = string
-  description = "VPC CIDR block used for scoped egress rules when restrict_egress is true."
+  description = "VPC CIDR block used for scoped ALB egress rules when restrict_egress is true."
   default     = ""
 
   validation {

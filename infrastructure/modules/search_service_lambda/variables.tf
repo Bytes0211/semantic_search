@@ -232,17 +232,12 @@ variable "deny_guardrail_policy_json" {
 
 variable "restrict_egress" {
   type        = bool
-  description = "When true, replace the all-traffic egress rule on the Lambda SG with HTTPS-only (443) to the VPC CIDR."
+  description = "When true, restrict Lambda SG to HTTPS-only (443) egress."
   default     = true
 }
 
 variable "vpc_cidr" {
   type        = string
-  description = "VPC CIDR block used for scoped egress rules when restrict_egress is true."
+  description = "VPC CIDR block (currently unused by Lambda module but kept for API consistency)."
   default     = ""
-
-  validation {
-    condition     = !var.restrict_egress || var.vpc_cidr != ""
-    error_message = "vpc_cidr must be a non-empty CIDR block when restrict_egress is true."
-  }
 }

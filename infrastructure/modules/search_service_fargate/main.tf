@@ -145,11 +145,11 @@ resource "aws_security_group" "service" {
   dynamic "egress" {
     for_each = var.restrict_egress ? [1] : []
     content {
-      description = "HTTPS to VPC CIDR (VPC endpoints)"
+      description = "HTTPS egress (NAT gateway or VPC endpoints)"
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
-      cidr_blocks = [var.vpc_cidr]
+      cidr_blocks = ["0.0.0.0/0"]
     }
   }
 
