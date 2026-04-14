@@ -38,9 +38,9 @@ resource "aws_iam_policy" "bedrock_invoke" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "BedrockInvokeModel"
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
+        Sid    = "BedrockInvokeModel"
+        Effect = "Allow"
+        Action = ["bedrock:InvokeModel"]
         Resource = [
           "arn:aws:bedrock:${data.aws_region.current.id}::foundation-model/${var.embedding_model_id}"
         ]
@@ -62,18 +62,18 @@ resource "aws_iam_policy" "s3_access" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "ReadCanonical"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:ListBucket"]
+        Sid    = "ReadCanonical"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:ListBucket"]
         Resource = [
           "arn:aws:s3:::${var.canonical_bucket_name}",
           "arn:aws:s3:::${var.canonical_bucket_name}/*"
         ]
       },
       {
-        Sid      = "WriteEmbeddings"
-        Effect   = "Allow"
-        Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+        Sid    = "WriteEmbeddings"
+        Effect = "Allow"
+        Action = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
         Resource = [
           "arn:aws:s3:::${var.embeddings_bucket_name}",
           "arn:aws:s3:::${var.embeddings_bucket_name}/*"

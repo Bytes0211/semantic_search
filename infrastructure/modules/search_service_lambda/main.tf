@@ -19,21 +19,21 @@ locals {
   }, var.tags)
 
   default_environment = {
-    SEARCH_RUNTIME           = "lambda"
-    VECTOR_STORE_ENDPOINT    = var.vector_store_endpoint
-    EMBEDDING_ENDPOINT       = var.embedding_endpoint
-    INGESTION_QUEUE_ARN      = var.ingestion_queue_arn
-    REINDEX_TOPIC_ARN        = var.reindex_topic_arn
-    LOG_LEVEL                = var.log_level
-    METRICS_NAMESPACE        = var.metrics_namespace
-    ENABLE_REQUEST_TRACING   = tostring(var.enable_request_tracing)
-    ENABLE_QUERY_LOGGING     = tostring(var.enable_query_logging)
-    MAX_CONCURRENT_QUERIES   = tostring(var.max_concurrent_queries)
-    DEFAULT_TOP_K            = tostring(var.default_top_k)
-    MAX_TOP_K                = tostring(var.max_top_k)
-    CANDIDATE_MULTIPLIER     = tostring(var.candidate_multiplier)
-    HEALTHCHECK_PATH         = var.healthcheck_path
-    READINESS_PATH           = var.readiness_path
+    SEARCH_RUNTIME         = "lambda"
+    VECTOR_STORE_ENDPOINT  = var.vector_store_endpoint
+    EMBEDDING_ENDPOINT     = var.embedding_endpoint
+    INGESTION_QUEUE_ARN    = var.ingestion_queue_arn
+    REINDEX_TOPIC_ARN      = var.reindex_topic_arn
+    LOG_LEVEL              = var.log_level
+    METRICS_NAMESPACE      = var.metrics_namespace
+    ENABLE_REQUEST_TRACING = tostring(var.enable_request_tracing)
+    ENABLE_QUERY_LOGGING   = tostring(var.enable_query_logging)
+    MAX_CONCURRENT_QUERIES = tostring(var.max_concurrent_queries)
+    DEFAULT_TOP_K          = tostring(var.default_top_k)
+    MAX_TOP_K              = tostring(var.max_top_k)
+    CANDIDATE_MULTIPLIER   = tostring(var.candidate_multiplier)
+    HEALTHCHECK_PATH       = var.healthcheck_path
+    READINESS_PATH         = var.readiness_path
   }
 
   container_environment = merge(local.default_environment, var.environment_variables)
@@ -43,7 +43,7 @@ resource "aws_iam_role" "lambda" {
   name = "${local.name_prefix}-role"
 
   assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
@@ -79,7 +79,7 @@ resource "aws_iam_role_policy" "secrets_access" {
   role = aws_iam_role.lambda.id
 
   policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [
       {
         Effect   = "Allow"
@@ -134,7 +134,7 @@ resource "aws_lambda_function" "search" {
   timeout       = var.timeout_seconds
   memory_size   = var.memory_mb
   architectures = [var.lambda_architecture]
-  publish                   = var.enable_provisioned_concurrency
+  publish       = var.enable_provisioned_concurrency
 
   environment {
     variables = local.container_environment
@@ -224,12 +224,12 @@ resource "aws_apigatewayv2_stage" "default" {
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gw.arn
     format = jsonencode({
-      requestId       = "$context.requestId"
-      requestTime     = "$context.requestTime"
-      httpMethod      = "$context.httpMethod"
-      routeKey        = "$context.routeKey"
-      status          = "$context.status"
-      responseLength  = "$context.responseLength"
+      requestId               = "$context.requestId"
+      requestTime             = "$context.requestTime"
+      httpMethod              = "$context.httpMethod"
+      routeKey                = "$context.routeKey"
+      status                  = "$context.status"
+      responseLength          = "$context.responseLength"
       integrationErrorMessage = "$context.integrationErrorMessage"
     })
   }

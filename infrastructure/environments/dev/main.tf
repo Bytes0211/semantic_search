@@ -58,8 +58,8 @@ module "iam_security" {
   environment = var.environment
   tags        = local.default_tags
 
-  enable_kms        = var.enable_kms
-  enable_cloudtrail = var.enable_cloudtrail
+  enable_kms         = var.enable_kms
+  enable_cloudtrail  = var.enable_cloudtrail
   enable_data_events = var.enable_cloudtrail_data_events
 
   # Scope the permission boundary to the project's data buckets once they exist.
@@ -214,109 +214,109 @@ module "search_service_fargate" {
   count  = var.search_runtime == "fargate" ? 1 : 0
   source = "../../modules/search_service_fargate"
 
-  project                           = var.project
-  environment                       = var.environment
-  aws_region                        = var.aws_region
-  vpc_id                            = module.core_network.vpc_id
+  project     = var.project
+  environment = var.environment
+  aws_region  = var.aws_region
+  vpc_id      = module.core_network.vpc_id
   # In dev there is no NAT gateway; tasks use public subnets with assign_public_ip=true
   # so they can reach ECR and Bedrock without a NAT.
-  subnet_ids                        = module.core_network.public_subnet_ids
-  public_subnet_ids                 = module.core_network.public_subnet_ids
-  additional_security_group_ids     = var.search_service_additional_security_group_ids
-  allowed_ingress_cidrs             = var.search_service_allowed_ingress_cidrs
-  vector_store_endpoint             = local.vector_store_endpoint
-  embedding_endpoint                = local.embedding_endpoint
-  ingestion_queue_arn               = module.data_plane.ingestion_queue_arn
-  reindex_topic_arn                 = module.data_plane.reindex_topic_arn
-  container_image                   = var.search_service_container_image
-  cpu                               = var.search_service_cpu
-  memory                            = var.search_service_memory
-  container_port                    = var.search_service_container_port
-  desired_count                     = var.search_service_desired_count
-  min_capacity                      = var.search_service_min_capacity
-  max_capacity                      = var.search_service_max_capacity
-  assign_public_ip                  = var.search_service_assign_public_ip
-  platform_version                  = var.search_service_platform_version
-  log_retention_in_days             = var.search_service_log_retention_in_days
-  environment_variables             = var.search_service_environment_variables
-  secret_arn_values                 = var.search_service_secret_arn_values
-  log_level                         = var.search_service_log_level
-  metrics_namespace                 = var.search_service_metrics_namespace
-  enable_request_tracing            = var.search_service_enable_request_tracing
-  enable_query_logging              = var.search_service_enable_query_logging
-  max_concurrent_queries            = var.search_service_max_concurrent_queries
-  default_top_k                     = var.search_service_default_top_k
-  max_top_k                         = var.search_service_max_top_k
-  candidate_multiplier              = var.search_service_candidate_multiplier
-  healthcheck_path                  = var.search_service_healthcheck_path
-  readiness_path                    = var.search_service_readiness_path
-  healthcheck_interval_seconds      = var.search_service_healthcheck_interval_seconds
-  healthcheck_timeout_seconds       = var.search_service_healthcheck_timeout_seconds
-  healthcheck_healthy_threshold     = var.search_service_healthcheck_healthy_threshold
-  healthcheck_unhealthy_threshold   = var.search_service_healthcheck_unhealthy_threshold
-  alarm_http_5xx_threshold          = var.search_service_alarm_http_5xx_threshold
-  startup_timeout_seconds           = var.search_service_startup_timeout_seconds
-  shutdown_timeout_seconds          = var.search_service_shutdown_timeout_seconds
-  enable_request_based_scaling      = var.search_service_enable_request_based_scaling
-  autoscaling_cpu_target            = var.search_service_autoscaling_cpu_target
-  autoscaling_requests_per_target   = var.search_service_autoscaling_requests_per_target
-  scale_in_cooldown_seconds         = var.search_service_scale_in_cooldown_seconds
-  scale_out_cooldown_seconds        = var.search_service_scale_out_cooldown_seconds
+  subnet_ids                      = module.core_network.public_subnet_ids
+  public_subnet_ids               = module.core_network.public_subnet_ids
+  additional_security_group_ids   = var.search_service_additional_security_group_ids
+  allowed_ingress_cidrs           = var.search_service_allowed_ingress_cidrs
+  vector_store_endpoint           = local.vector_store_endpoint
+  embedding_endpoint              = local.embedding_endpoint
+  ingestion_queue_arn             = module.data_plane.ingestion_queue_arn
+  reindex_topic_arn               = module.data_plane.reindex_topic_arn
+  container_image                 = var.search_service_container_image
+  cpu                             = var.search_service_cpu
+  memory                          = var.search_service_memory
+  container_port                  = var.search_service_container_port
+  desired_count                   = var.search_service_desired_count
+  min_capacity                    = var.search_service_min_capacity
+  max_capacity                    = var.search_service_max_capacity
+  assign_public_ip                = var.search_service_assign_public_ip
+  platform_version                = var.search_service_platform_version
+  log_retention_in_days           = var.search_service_log_retention_in_days
+  environment_variables           = var.search_service_environment_variables
+  secret_arn_values               = var.search_service_secret_arn_values
+  log_level                       = var.search_service_log_level
+  metrics_namespace               = var.search_service_metrics_namespace
+  enable_request_tracing          = var.search_service_enable_request_tracing
+  enable_query_logging            = var.search_service_enable_query_logging
+  max_concurrent_queries          = var.search_service_max_concurrent_queries
+  default_top_k                   = var.search_service_default_top_k
+  max_top_k                       = var.search_service_max_top_k
+  candidate_multiplier            = var.search_service_candidate_multiplier
+  healthcheck_path                = var.search_service_healthcheck_path
+  readiness_path                  = var.search_service_readiness_path
+  healthcheck_interval_seconds    = var.search_service_healthcheck_interval_seconds
+  healthcheck_timeout_seconds     = var.search_service_healthcheck_timeout_seconds
+  healthcheck_healthy_threshold   = var.search_service_healthcheck_healthy_threshold
+  healthcheck_unhealthy_threshold = var.search_service_healthcheck_unhealthy_threshold
+  alarm_http_5xx_threshold        = var.search_service_alarm_http_5xx_threshold
+  startup_timeout_seconds         = var.search_service_startup_timeout_seconds
+  shutdown_timeout_seconds        = var.search_service_shutdown_timeout_seconds
+  enable_request_based_scaling    = var.search_service_enable_request_based_scaling
+  autoscaling_cpu_target          = var.search_service_autoscaling_cpu_target
+  autoscaling_requests_per_target = var.search_service_autoscaling_requests_per_target
+  scale_in_cooldown_seconds       = var.search_service_scale_in_cooldown_seconds
+  scale_out_cooldown_seconds      = var.search_service_scale_out_cooldown_seconds
 
   # IAM Security
-  permissions_boundary_arn    = module.iam_security.permission_boundary_arn
-  deny_guardrail_policy_json  = module.iam_security.deny_guardrail_policy_json
-  restrict_egress             = var.restrict_egress
-  vpc_cidr                    = var.vpc_cidr
+  permissions_boundary_arn   = module.iam_security.permission_boundary_arn
+  deny_guardrail_policy_json = module.iam_security.deny_guardrail_policy_json
+  restrict_egress            = var.restrict_egress
+  vpc_cidr                   = var.vpc_cidr
 
-  tags                              = local.default_tags
+  tags = local.default_tags
 }
 
 module "search_service_lambda" {
   count  = var.search_runtime == "lambda" ? 1 : 0
   source = "../../modules/search_service_lambda"
 
-  project                           = var.project
-  environment                       = var.environment
-  vpc_id                            = module.core_network.vpc_id
-  subnet_ids                        = module.core_network.private_subnet_ids
-  vector_store_endpoint             = local.vector_store_endpoint
-  embedding_endpoint                = local.embedding_endpoint
-  ingestion_queue_arn               = module.data_plane.ingestion_queue_arn
-  reindex_topic_arn                 = module.data_plane.reindex_topic_arn
-  tags                              = local.default_tags
-  container_image                   = var.lambda_container_image
-  lambda_architecture               = var.lambda_architecture
-  timeout_seconds                   = var.lambda_timeout_seconds
-  memory_mb                         = var.lambda_memory_mb
-  enable_ephemeral_storage          = var.lambda_enable_ephemeral_storage
-  ephemeral_storage_mb              = var.lambda_ephemeral_storage_mb
-  enable_provisioned_concurrency    = var.lambda_enable_provisioned_concurrency
-  provisioned_concurrency_count     = var.lambda_provisioned_concurrency_count
-  log_level                         = var.lambda_log_level
-  metrics_namespace                 = var.lambda_metrics_namespace
-  enable_request_tracing            = var.lambda_enable_request_tracing
-  enable_query_logging              = var.lambda_enable_query_logging
-  max_concurrent_queries            = var.lambda_max_concurrent_queries
-  default_top_k                     = var.lambda_default_top_k
-  max_top_k                         = var.lambda_max_top_k
-  candidate_multiplier              = var.lambda_candidate_multiplier
-  healthcheck_path                  = var.lambda_healthcheck_path
-  readiness_path                    = var.lambda_readiness_path
-  environment_variables             = var.lambda_environment_variables
-  secret_arn_values                 = var.lambda_secret_arn_values
-  log_retention_in_days             = var.lambda_log_retention_in_days
-  api_gateway_timeout_ms            = var.lambda_api_gateway_timeout_ms
-  api_gateway_stage                 = var.lambda_api_gateway_stage
-  xray_tracing_mode                 = var.lambda_xray_tracing_mode
-  alarm_throttle_threshold          = var.lambda_alarm_throttle_threshold
-  additional_security_group_ids     = var.lambda_additional_security_group_ids
+  project                        = var.project
+  environment                    = var.environment
+  vpc_id                         = module.core_network.vpc_id
+  subnet_ids                     = module.core_network.private_subnet_ids
+  vector_store_endpoint          = local.vector_store_endpoint
+  embedding_endpoint             = local.embedding_endpoint
+  ingestion_queue_arn            = module.data_plane.ingestion_queue_arn
+  reindex_topic_arn              = module.data_plane.reindex_topic_arn
+  tags                           = local.default_tags
+  container_image                = var.lambda_container_image
+  lambda_architecture            = var.lambda_architecture
+  timeout_seconds                = var.lambda_timeout_seconds
+  memory_mb                      = var.lambda_memory_mb
+  enable_ephemeral_storage       = var.lambda_enable_ephemeral_storage
+  ephemeral_storage_mb           = var.lambda_ephemeral_storage_mb
+  enable_provisioned_concurrency = var.lambda_enable_provisioned_concurrency
+  provisioned_concurrency_count  = var.lambda_provisioned_concurrency_count
+  log_level                      = var.lambda_log_level
+  metrics_namespace              = var.lambda_metrics_namespace
+  enable_request_tracing         = var.lambda_enable_request_tracing
+  enable_query_logging           = var.lambda_enable_query_logging
+  max_concurrent_queries         = var.lambda_max_concurrent_queries
+  default_top_k                  = var.lambda_default_top_k
+  max_top_k                      = var.lambda_max_top_k
+  candidate_multiplier           = var.lambda_candidate_multiplier
+  healthcheck_path               = var.lambda_healthcheck_path
+  readiness_path                 = var.lambda_readiness_path
+  environment_variables          = var.lambda_environment_variables
+  secret_arn_values              = var.lambda_secret_arn_values
+  log_retention_in_days          = var.lambda_log_retention_in_days
+  api_gateway_timeout_ms         = var.lambda_api_gateway_timeout_ms
+  api_gateway_stage              = var.lambda_api_gateway_stage
+  xray_tracing_mode              = var.lambda_xray_tracing_mode
+  alarm_throttle_threshold       = var.lambda_alarm_throttle_threshold
+  additional_security_group_ids  = var.lambda_additional_security_group_ids
 
   # IAM Security
-  permissions_boundary_arn    = module.iam_security.permission_boundary_arn
-  deny_guardrail_policy_json  = module.iam_security.deny_guardrail_policy_json
-  restrict_egress             = var.restrict_egress
-  vpc_cidr                    = var.vpc_cidr
+  permissions_boundary_arn   = module.iam_security.permission_boundary_arn
+  deny_guardrail_policy_json = module.iam_security.deny_guardrail_policy_json
+  restrict_egress            = var.restrict_egress
+  vpc_cidr                   = var.vpc_cidr
 }
 
 locals {
