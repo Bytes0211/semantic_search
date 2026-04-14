@@ -192,12 +192,13 @@ resource "aws_security_group" "load_balancer" {
 }
 
 resource "aws_lb" "this" {
-  name               = substr("${local.name_prefix}-alb", 0, 32)
-  internal           = false
-  load_balancer_type = "application"
-  subnets            = var.public_subnet_ids
-  security_groups    = [aws_security_group.load_balancer.id]
-  tags               = local.common_tags
+  name                       = substr("${local.name_prefix}-alb", 0, 32)
+  internal                   = false
+  load_balancer_type         = "application"
+  subnets                    = var.public_subnet_ids
+  security_groups            = [aws_security_group.load_balancer.id]
+  drop_invalid_header_fields = true
+  tags                       = local.common_tags
 }
 
 resource "aws_lb_target_group" "this" {
