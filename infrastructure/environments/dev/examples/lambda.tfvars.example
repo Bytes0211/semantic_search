@@ -14,9 +14,9 @@ ingestion_mode              = "batch"
 create_nat_gateway         = true
 enable_interface_endpoints = false
 
-# Restrict security group egress to VPC CIDR only (HTTPS port 443)
-# Set to false for unrestricted internet egress (not recommended for production)
-restrict_egress = true
+# Restrict security group egress to VPC CIDR only (default = true, secure-by-default)
+# Uncomment to allow unrestricted egress (development only, NOT for production)
+# restrict_egress = false
 
 # ─── Lambda Configuration ─────────────────────────────────────────────────────
 # Container image published by the shared build pipeline

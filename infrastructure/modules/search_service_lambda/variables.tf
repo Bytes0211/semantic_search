@@ -233,7 +233,7 @@ variable "deny_guardrail_policy_json" {
 variable "restrict_egress" {
   type        = bool
   description = "When true, replace the all-traffic egress rule on the Lambda SG with HTTPS-only (443) to the VPC CIDR."
-  default     = false
+  default     = true
 }
 
 variable "vpc_cidr" {
