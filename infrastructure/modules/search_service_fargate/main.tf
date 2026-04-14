@@ -169,6 +169,17 @@ resource "aws_security_group" "load_balancer" {
     cidr_blocks = var.allowed_ingress_cidrs
   }
 
+  dynamic "ingress" {
+    for_each = var.acm_certificate_arn != "" ? [1] : []
+    content {
+      description = "HTTPS"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = var.allowed_ingress_cidrs
+    }
+  }
+
   egress {
     description = "Outbound to tasks"
     from_port   = 0
@@ -181,12 +192,13 @@ resource "aws_security_group" "load_balancer" {
 }
 
 resource "aws_lb" "this" {
-  name               = substr("${local.name_prefix}-alb", 0, 32)
-  internal           = false
-  load_balancer_type = "application"
-  subnets            = var.public_subnet_ids
-  security_groups    = [aws_security_group.load_balancer.id]
-  tags               = local.common_tags
+  name                       = substr("${local.name_prefix}-alb", 0, 32)
+  internal                   = false
+  load_balancer_type         = "application"
+  subnets                    = var.public_subnet_ids
+  security_groups            = [aws_security_group.load_balancer.id]
+  drop_invalid_header_fields = true
+  tags                       = local.common_tags
 }
 
 resource "aws_lb_target_group" "this" {
@@ -209,10 +221,37 @@ resource "aws_lb_target_group" "this" {
   tags = local.common_tags
 }
 
+# HTTP listener: redirect to HTTPS if cert exists, otherwise forward
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type = var.acm_certificate_arn != "" ? "redirect" : "forward"
+
+    dynamic "redirect" {
+      for_each = var.acm_certificate_arn != "" ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+
+    target_group_arn = var.acm_certificate_arn == "" ? aws_lb_target_group.this.arn : null
+  }
+}
+
+# HTTPS listener: only created when ACM cert is provided
+resource "aws_lb_listener" "https" {
+  count = var.acm_certificate_arn != "" ? 1 : 0
+
+  load_balancer_arn = aws_lb.this.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
 
   default_action {
     type             = "forward"
