@@ -624,6 +624,11 @@ variable "search_service_assign_public_ip" {
   type        = bool
   description = "Assign a public IP to the Fargate tasks."
   default     = false
+
+  validation {
+    condition     = var.search_service_assign_public_ip || var.create_nat_gateway || var.enable_interface_endpoints
+    error_message = "Private-subnet Fargate tasks require at least one egress path: set create_nat_gateway=true, enable_interface_endpoints=true, or search_service_assign_public_ip=true."
+  }
 }
 
 variable "search_service_platform_version" {

@@ -116,6 +116,10 @@ create_nat_gateway              = true   # Or enable_interface_endpoints = true
 search_service_assign_public_ip = false  # Tasks use private IPs only
 ```
 
+**Important limitations:**
+- **Single NAT Gateway:** The default configuration provisions one NAT gateway in the first availability zone only. Tasks in other AZs route egress traffic cross-AZ through this single NAT gateway. If that AZ experiences degradation, all private subnet egress fails, despite the multi-AZ ECS deployment. For production environments requiring AZ-level fault isolation, consider enabling VPC interface endpoints instead (`enable_interface_endpoints = true`), which are provisioned per-AZ automatically.
+- **Egress precondition:** Terraform enforces that at least one egress mechanism is enabled when tasks are in private subnets. If `create_nat_gateway`, `enable_interface_endpoints`, and `search_service_assign_public_ip` are all `false`, the apply will fail with a precondition error.
+
 When disabling the NAT gateway or VPC endpoints (e.g., for local testing), tasks can be placed in public subnets with `assign_public_ip = true`, but this configuration **is not recommended for production** as it exposes container instances directly to the internet.
 
 ---
