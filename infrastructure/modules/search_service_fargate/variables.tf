@@ -56,6 +56,12 @@ variable "allowed_ingress_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "acm_certificate_arn" {
+  description = "ARN of the ACM certificate for HTTPS listener. Leave empty to skip HTTPS and use HTTP only (not recommended for production)."
+  type        = string
+  default     = ""
+}
+
 variable "container_image" {
   description = "Fully qualified container image URI for the semantic search runtime."
   type        = string

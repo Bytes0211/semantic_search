@@ -224,6 +224,7 @@ module "search_service_fargate" {
   public_subnet_ids               = module.core_network.public_subnet_ids
   additional_security_group_ids   = var.search_service_additional_security_group_ids
   allowed_ingress_cidrs           = var.search_service_allowed_ingress_cidrs
+  acm_certificate_arn             = var.search_service_acm_certificate_arn
   vector_store_endpoint           = local.vector_store_endpoint
   embedding_endpoint              = local.embedding_endpoint
   ingestion_queue_arn             = module.data_plane.ingestion_queue_arn
@@ -564,6 +565,12 @@ variable "search_service_allowed_ingress_cidrs" {
   type        = list(string)
   description = "CIDR blocks permitted to access the search service load balancer."
   default     = ["0.0.0.0/0"]
+}
+
+variable "search_service_acm_certificate_arn" {
+  type        = string
+  description = "ARN of the ACM certificate for HTTPS listener on the search service ALB. Leave empty to skip HTTPS."
+  default     = ""
 }
 
 variable "search_service_container_image" {

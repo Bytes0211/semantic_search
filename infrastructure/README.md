@@ -44,6 +44,52 @@ Additional settingsâ€”instance sizes, autoscaling thresholds, retention periodsâ
 
 ---
 
+## Security Configuration
+
+### HTTPS and TLS
+
+The Fargate ALB supports optional HTTPS with ACM certificates:
+
+- **Development:** HTTP-only mode is acceptable for testing (no certificate required)
+- **Production:** HTTPS is strongly recommended; provide an ACM certificate ARN via `search_service_acm_certificate_arn`
+
+When a certificate ARN is provided:
+- HTTPS listener is created on port 443 with TLS 1.3 policy (`ELBSecurityPolicy-TLS13-1-2-2021-06`)
+- HTTP port 80 redirects to HTTPS with a permanent (301) redirect
+- Security group allows both HTTP and HTTPS ingress from configured CIDRs
+
+When no certificate is provided:
+- HTTP listener forwards directly to the target group
+- No HTTPS listener is created
+- Security group allows only HTTP ingress
+
+**To enable HTTPS:**
+1. Create or import an ACM certificate in the deployment region
+2. Set `search_service_acm_certificate_arn` in terraform.tfvars
+3. Apply the Terraform configuration
+
+### Network Access Control
+
+The `search_service_allowed_ingress_cidrs` variable controls which IP ranges can access the ALB:
+
+- **Development:** `0.0.0.0/0` is acceptable for testing but not recommended
+- **Staging/Production:** Restrict to known CIDRs:
+  - Office/VPN IP ranges
+  - CloudFront prefix list (if using CDN)
+  - Partner API gateway IPs
+  - Internal VPC CIDR (for service-to-service calls)
+
+**Example production configuration:**
+```hcl
+search_service_allowed_ingress_cidrs = [
+  "203.0.113.0/24",    # Office network
+  "198.51.100.0/24",   # VPN range
+]
+search_service_acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abcd1234-..."
+```
+
+---
+
 ## Remote State Backend
 
 All environments use **S3 + DynamoDB** for remote state storage and locking to enable team collaboration and prevent state corruption.
