@@ -46,6 +46,10 @@ variable "environment" {
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "${var.project}-${var.environment}-terraform-state"
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Name        = "${var.project}-${var.environment}-terraform-state"
     Project     = var.project
@@ -65,6 +69,9 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 }
 
 # Enable server-side encryption
+# Note: Using AES256 (SSE-S3) rather than KMS to keep bootstrap self-contained.
+# This allows the backend to be created before any KMS keys exist in the project.
+# For production environments, consider migrating to SSE-KMS after initial setup.
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
@@ -90,6 +97,10 @@ resource "aws_dynamodb_table" "terraform_locks" {
   name         = "${var.project}-${var.environment}-terraform-locks"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 
   attribute {
     name = "LockID"

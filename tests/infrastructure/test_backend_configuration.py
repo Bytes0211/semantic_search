@@ -190,11 +190,32 @@ class TestNamingConsistency:
         assert backend_match, "Could not find bucket in backend.tf"
         backend_bucket = backend_match.group(1)
 
-        # Extract bucket naming pattern from bootstrap
-        # Should be: ${var.project}-${var.environment}-terraform-state
-        assert "semantic-search" in backend_bucket
-        assert "dev" in backend_bucket
-        assert "terraform-state" in backend_bucket
+        # Extract default variable values from bootstrap
+        project_match = re.search(
+            r'variable\s+"project"[^}]*default\s*=\s*"([^"]+)"',
+            bootstrap_content,
+            re.DOTALL,
+        )
+        env_match = re.search(
+            r'variable\s+"environment"[^}]*default\s*=\s*"([^"]+)"',
+            bootstrap_content,
+            re.DOTALL,
+        )
+
+        assert project_match and env_match, (
+            "Could not find default project/environment in bootstrap"
+        )
+
+        # Construct expected bucket name from bootstrap defaults
+        expected_bucket = (
+            f"{project_match.group(1)}-{env_match.group(1)}-terraform-state"
+        )
+
+        # Verify backend bucket matches bootstrap template
+        assert backend_bucket == expected_bucket, (
+            f"Bucket name mismatch: backend has '{backend_bucket}', "
+            f"bootstrap defaults resolve to '{expected_bucket}'"
+        )
 
     def test_dynamodb_names_match(self, dev_environment: Path, bootstrap_dir: Path):
         """Backend DynamoDB reference matches bootstrap table name."""
@@ -206,10 +227,32 @@ class TestNamingConsistency:
         assert backend_match, "Could not find dynamodb_table in backend.tf"
         backend_table = backend_match.group(1)
 
-        # Verify naming pattern
-        assert "semantic-search" in backend_table
-        assert "dev" in backend_table
-        assert "terraform-locks" in backend_table
+        # Extract default variable values from bootstrap
+        project_match = re.search(
+            r'variable\s+"project"[^}]*default\s*=\s*"([^"]+)"',
+            bootstrap_content,
+            re.DOTALL,
+        )
+        env_match = re.search(
+            r'variable\s+"environment"[^}]*default\s*=\s*"([^"]+)"',
+            bootstrap_content,
+            re.DOTALL,
+        )
+
+        assert project_match and env_match, (
+            "Could not find default project/environment in bootstrap"
+        )
+
+        # Construct expected table name from bootstrap defaults
+        expected_table = (
+            f"{project_match.group(1)}-{env_match.group(1)}-terraform-locks"
+        )
+
+        # Verify backend table matches bootstrap template
+        assert backend_table == expected_table, (
+            f"Table name mismatch: backend has '{backend_table}', "
+            f"bootstrap defaults resolve to '{expected_table}'"
+        )
 
 
 class TestGitIgnore:
