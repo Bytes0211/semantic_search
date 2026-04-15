@@ -13,6 +13,9 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Data source to resolve current AWS account ID dynamically
+data "aws_caller_identity" "current" {}
+
 locals {
   default_tags = merge(
     {
@@ -22,6 +25,17 @@ locals {
       Stack       = "semantic-search"
     },
     var.additional_tags
+  )
+
+  # Construct ECR image URI from components, or use explicit override if provided
+  ecr_image_uri = (
+    var.search_service_container_image != "" ? var.search_service_container_image :
+    "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_repository_name}:${var.image_tag}"
+  )
+
+  lambda_image_uri = (
+    var.lambda_container_image != "" ? var.lambda_container_image :
+    "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_repository_name}:${var.image_tag}"
   )
 
 }
@@ -228,7 +242,7 @@ module "search_service_fargate" {
   embedding_endpoint              = local.embedding_endpoint
   ingestion_queue_arn             = module.data_plane.ingestion_queue_arn
   reindex_topic_arn               = module.data_plane.reindex_topic_arn
-  container_image                 = var.search_service_container_image
+  container_image                 = local.ecr_image_uri
   cpu                             = var.search_service_cpu
   memory                          = var.search_service_memory
   container_port                  = var.search_service_container_port
@@ -289,7 +303,7 @@ module "search_service_lambda" {
   ingestion_queue_arn            = module.data_plane.ingestion_queue_arn
   reindex_topic_arn              = module.data_plane.reindex_topic_arn
   tags                           = local.default_tags
-  container_image                = var.lambda_container_image
+  container_image                = local.lambda_image_uri
   lambda_architecture            = var.lambda_architecture
   timeout_seconds                = var.lambda_timeout_seconds
   memory_mb                      = var.lambda_memory_mb
@@ -487,6 +501,19 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+# ─── Container Image Configuration ────────────────────────────────────────────
+variable "ecr_repository_name" {
+  type        = string
+  description = "Name of the ECR repository (e.g., semantic-search). Account ID and region are resolved automatically."
+  default     = "semantic-search"
+}
+
+variable "image_tag" {
+  type        = string
+  description = "Container image tag (e.g., main, v1.2.3, sha-abc123)."
+  default     = "main"
+}
+
 variable "additional_tags" {
   type        = map(string)
   description = "Extra tags to merge into the default tag set."
@@ -584,7 +611,7 @@ variable "search_service_acm_certificate_arn" {
 
 variable "search_service_container_image" {
   type        = string
-  description = "Container image URI for the semantic search runtime."
+  description = "Optional: Full container image URI override for the semantic search runtime. Leave empty to construct from ecr_repository_name + image_tag + current account."
   default     = ""
 }
 
@@ -793,7 +820,7 @@ variable "search_service_scale_out_cooldown_seconds" {
 
 variable "lambda_container_image" {
   type        = string
-  description = "Container image URI for the Lambda search runtime."
+  description = "Optional: Full container image URI override for the Lambda search runtime. Leave empty to construct from ecr_repository_name + image_tag + current account."
   default     = ""
 }
 

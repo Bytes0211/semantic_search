@@ -19,9 +19,12 @@ enable_interface_endpoints = false
 # When false: unrestricted egress (development only, NOT for production)
 # restrict_egress = false
 
+# ─── Container Image ──────────────────────────────────────────────────────────
+# Account ID and region are resolved automatically from AWS provider credentials
+ecr_repository_name = "semantic-search"
+image_tag           = "main"
+
 # ─── Lambda Configuration ─────────────────────────────────────────────────────
-# Container image published by the shared build pipeline
-lambda_container_image      = "123456789012.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main"
 lambda_timeout_seconds      = 20
 lambda_memory_mb            = 2048
 lambda_enable_ephemeral_storage = true
