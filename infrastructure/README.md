@@ -88,6 +88,30 @@ search_service_allowed_ingress_cidrs = [
 search_service_acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abcd1234-..."
 ```
 
+### Web Application Firewall (WAF)
+
+AWS WAFv2 can be attached to the ALB to protect against common web exploits and automated attacks:
+
+- **Development:** Not required; `enable_waf = false` (default) to minimize cost
+- **Production:** Strongly recommended; `enable_waf = true`
+
+When enabled, the module creates a **REGIONAL** WebACL with AWS managed rule groups:
+- `AWSManagedRulesCommonRuleSet` (priority 1) — OWASP Top 10 and CVE protections
+- `AWSManagedRulesKnownBadInputsRuleSet` (priority 2) — Known attack patterns
+
+All rules are in COUNT mode by default (logging only, no blocking) to allow baseline establishment. Once traffic patterns are understood, you can switch individual rules to BLOCK mode.
+
+**Costs:** ~$5/month base fee + $1 per million requests + $0.60 per rule per month (~$1.20 for two managed rule groups).
+
+**To enable WAF:**
+```hcl
+enable_waf = true
+```
+
+**CloudWatch Metrics:** The WebACL emits metrics to the `AWS/WAFV2` namespace with dimensions `Rule` and `WebACL`. These are automatically wired to the observability module's dashboards.
+
+**Custom rule groups:** The `waf_rule_groups` variable (in the Fargate module) can be overridden to add custom managed rule groups or adjust priorities, but the default configuration is suitable for most applications.
+
 ### Private Subnets and NAT Gateway
 
 Fargate tasks run in **private subnets** for security hardening and do not receive public IP addresses. Outbound connectivity to AWS services (ECR, Bedrock, S3) and the internet is provided through a **NAT gateway** or **VPC endpoints**.

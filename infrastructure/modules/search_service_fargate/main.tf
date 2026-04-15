@@ -445,3 +445,58 @@ resource "aws_appautoscaling_policy" "request_count" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# WAF WebACL
+# ---------------------------------------------------------------------------
+
+resource "aws_wafv2_web_acl" "this" {
+  count = var.enable_waf ? 1 : 0
+
+  name  = "${local.name_prefix}-waf"
+  scope = var.waf_scope
+
+  default_action {
+    allow {}
+  }
+
+  dynamic "rule" {
+    for_each = var.waf_rule_groups
+    content {
+      name     = rule.value.name
+      priority = rule.value.priority
+
+      override_action {
+        none {}
+      }
+
+      statement {
+        managed_rule_group_statement {
+          vendor_name = "AWS"
+          name        = rule.value.name
+        }
+      }
+
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${local.name_prefix}-${rule.value.name}"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${local.name_prefix}-waf"
+    sampled_requests_enabled   = true
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_wafv2_web_acl_association" "this" {
+  count = var.enable_waf ? 1 : 0
+
+  resource_arn = aws_lb.this.arn
+  web_acl_arn  = aws_wafv2_web_acl.this[0].arn
+}
+

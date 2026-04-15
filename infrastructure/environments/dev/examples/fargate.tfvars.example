@@ -19,6 +19,10 @@ enable_interface_endpoints = false
 # When false: unrestricted egress (development only, NOT for production)
 # restrict_egress = false
 
+# WAF protection - strongly recommended for production (~$5/mo + $1/million requests)
+# Attaches AWS WAFv2 WebACL with managed rule groups (OWASP Top 10, known bad inputs)
+# enable_waf = true
+
 # ─── Search Service Configuration ─────────────────────────────────────────────
 search_service_container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main"
 

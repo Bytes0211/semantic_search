@@ -269,6 +269,9 @@ module "search_service_fargate" {
   restrict_egress            = var.restrict_egress
   vpc_cidr                   = var.vpc_cidr
 
+  # WAF
+  enable_waf = var.enable_waf
+
   tags = local.default_tags
 }
 
@@ -510,7 +513,7 @@ variable "default_az_count" {
 variable "enable_flow_logs" {
   type        = bool
   description = "Whether to enable VPC flow logs. Requires flow_log_destination_arn (and flow_log_iam_role_arn for CloudWatch Logs) when true."
-  default     = false
+  default     = true
 }
 
 variable "flow_log_destination_type" {
@@ -640,7 +643,7 @@ variable "search_service_platform_version" {
 variable "search_service_log_retention_in_days" {
   type        = number
   description = "CloudWatch Logs retention period for the search service."
-  default     = 14
+  default     = 90
 }
 
 variable "search_service_environment_variables" {
@@ -915,7 +918,7 @@ variable "lambda_secret_arn_values" {
 variable "lambda_log_retention_in_days" {
   type        = number
   description = "CloudWatch Logs retention period for the Lambda runtime."
-  default     = 14
+  default     = 90
 }
 
 variable "lambda_api_gateway_timeout_ms" {
@@ -1021,5 +1024,11 @@ variable "enable_interface_endpoints" {
 variable "restrict_egress" {
   type        = bool
   description = "Tighten security group egress to HTTPS-only to VPC CIDR (requires VPC endpoints for full connectivity)."
+  default     = false
+}
+
+variable "enable_waf" {
+  type        = bool
+  description = "Attach AWS WAFv2 WebACL with managed rule groups to the ALB. Recommended for production environments."
   default     = false
 }
