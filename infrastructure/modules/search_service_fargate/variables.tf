@@ -325,3 +325,21 @@ variable "vpc_cidr" {
     error_message = "vpc_cidr must be a non-empty CIDR block when restrict_egress is true."
   }
 }
+
+variable "enable_waf" {
+  type        = bool
+  description = "Whether to provision and attach an AWS WAFv2 WebACL to the ALB."
+  default     = false
+}
+
+variable "waf_rule_groups" {
+  type = list(object({
+    name     = string
+    priority = number
+  }))
+  description = "List of AWS managed WAF rule groups to enable. Each entry specifies the rule group name and priority."
+  default = [
+    { name = "AWSManagedRulesCommonRuleSet", priority = 1 },
+    { name = "AWSManagedRulesKnownBadInputsRuleSet", priority = 2 }
+  ]
+}

@@ -269,6 +269,10 @@ module "search_service_fargate" {
   restrict_egress            = var.restrict_egress
   vpc_cidr                   = var.vpc_cidr
 
+  # WAF
+  enable_waf      = var.enable_waf
+  waf_rule_groups = var.search_service_waf_rule_groups
+
   tags = local.default_tags
 }
 
@@ -640,7 +644,7 @@ variable "search_service_platform_version" {
 variable "search_service_log_retention_in_days" {
   type        = number
   description = "CloudWatch Logs retention period for the search service."
-  default     = 14
+  default     = 90
 }
 
 variable "search_service_environment_variables" {
@@ -915,7 +919,7 @@ variable "lambda_secret_arn_values" {
 variable "lambda_log_retention_in_days" {
   type        = number
   description = "CloudWatch Logs retention period for the Lambda runtime."
-  default     = 14
+  default     = 90
 }
 
 variable "lambda_api_gateway_timeout_ms" {
@@ -1022,4 +1026,22 @@ variable "restrict_egress" {
   type        = bool
   description = "Tighten security group egress to HTTPS-only to VPC CIDR (requires VPC endpoints for full connectivity)."
   default     = false
+}
+
+variable "enable_waf" {
+  type        = bool
+  description = "Attach AWS WAFv2 WebACL with managed rule groups to the ALB. Recommended for production environments."
+  default     = false
+}
+
+variable "search_service_waf_rule_groups" {
+  type = list(object({
+    name     = string
+    priority = number
+  }))
+  description = "List of AWS managed WAF rule groups to attach to the ALB. Each entry specifies the rule group name and priority."
+  default = [
+    { name = "AWSManagedRulesCommonRuleSet", priority = 1 },
+    { name = "AWSManagedRulesKnownBadInputsRuleSet", priority = 2 }
+  ]
 }

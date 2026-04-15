@@ -19,6 +19,16 @@ enable_interface_endpoints = false
 # When false: unrestricted egress (development only, NOT for production)
 # restrict_egress = false
 
+# VPC Flow Logs - disabled by default; enable for network troubleshooting and security auditing
+# enable_flow_logs             = true
+# flow_log_destination_type    = "cloud-watch-logs"  # or "s3"
+# flow_log_destination_arn     = "arn:aws:logs:us-east-1:123456789012:log-group:/vpc/flow-logs"
+# flow_log_iam_role_arn        = "arn:aws:iam::123456789012:role/vpc-flow-logs-role"  # Required for CloudWatch Logs only
+
+# WAF protection - strongly recommended for production (~$5/mo + $1/million requests)
+# Attaches AWS WAFv2 WebACL with managed rule groups (OWASP Top 10, known bad inputs)
+# enable_waf = true
+
 # ─── Search Service Configuration ─────────────────────────────────────────────
 search_service_container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/semantic-search:main"
 
