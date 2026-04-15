@@ -122,6 +122,37 @@ search_service_assign_public_ip = false  # Tasks use private IPs only
 
 When disabling the NAT gateway or VPC endpoints (e.g., for local testing), tasks can be placed in public subnets with `assign_public_ip = true`, but this configuration **is not recommended for production** as it exposes container instances directly to the internet.
 
+### Security Group Egress Restrictions
+
+The `restrict_egress` variable controls outbound traffic from Fargate tasks, Lambda functions, and the ALB security groups.
+
+**When `restrict_egress = true` (default, recommended):**
+- Fargate task and Lambda security groups: HTTPS egress (port 443) only, all destinations
+- ALB security group: TCP egress on container port scoped to VPC CIDR only (for forwarding to tasks)
+- Blocks all non-HTTPS protocols and ports
+- Works with both NAT gateway (public endpoints) and VPC endpoints (private endpoints)
+- Minimizes blast radius if a workload is compromised
+
+**When `restrict_egress = false` (opt-in, development only):**
+- All security groups allow unrestricted egress (`0.0.0.0/0`) on all ports
+- Simplifies initial setup and troubleshooting
+- **Not recommended for production** — widens attack surface
+
+**Example production configuration:**
+```hcl
+create_nat_gateway = true   # Provides egress for all AWS services
+restrict_egress    = true   # Default; restricts protocols/ports (HTTPS only)
+```
+
+**To disable egress restrictions (development only):**
+```hcl
+restrict_egress = false   # Allows unrestricted egress — NOT for production
+```
+
+**Prerequisites:**
+- At least one egress path must be provisioned (`create_nat_gateway = true` OR `enable_interface_endpoints = true`)
+- When using Fargate, VPC CIDR must be set for ALB egress rules (automatically provided via `var.vpc_cidr`)
+
 ---
 
 ## Remote State Backend
