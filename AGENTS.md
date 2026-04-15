@@ -358,7 +358,7 @@ A single Docker image is used for the search application, reused across both run
 - ✅ Updated Lambda module call: `container_image = local.lambda_image_uri` (was `var.lambda_container_image`).
 - ✅ Modified `search_service_container_image` and `lambda_container_image` variable descriptions — now optional overrides that fall back to constructed URIs.
 - ✅ Updated `infrastructure/environments/dev/terraform.tfvars` (gitignored) — replaced hardcoded `696056865313.dkr.ecr...` with `ecr_repository_name = "semantic-search"` and `image_tag = "main"`.
-- ✅ Updated `infrastructure/environments/dev/examples/fargate.tfvars.example` — removed hardcoded account ID, added parameterized `ecr_repository_name` and `image_tag` with comment explaining automatic account resolution.
+- ✅ Updated `infrastructure/environments/dev/examples/fargate.tfvars.example` and `lambda.tfvars.example` — removed hardcoded account IDs, added parameterized `ecr_repository_name` and `image_tag` with comments explaining automatic account resolution.
 - ✅ Terraform validation passes — no syntax errors, full compatibility with existing deployments.
 - ✅ Acceptance criteria met: no literal account ID in tfvars/examples; works across dev/stage/prod by changing only AWS provider config.
 
