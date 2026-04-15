@@ -112,6 +112,33 @@ enable_waf = true
 
 **Custom rule groups:** The `waf_rule_groups` variable (in the Fargate module) can be overridden to add custom managed rule groups or adjust priorities, but the default configuration is suitable for most applications.
 
+### High Availability and Multi-AZ Deployment
+
+For production deployments, run at least **2 tasks** distributed across **2 availability zones** to ensure zero-downtime during deployments and resilience to single-task or AZ failures.
+
+**Key configuration:**
+```hcl
+# Task count controls
+search_service_desired_count = 2   # Initial and target task count
+search_service_min_capacity  = 2   # Minimum tasks (autoscaling floor)
+search_service_max_capacity  = 6   # Maximum tasks (autoscaling ceiling)
+
+# Multi-AZ is automatic when default_az_count >= 2 (default)
+default_az_count = 2               # Subnets span this many AZs
+```
+
+**Autoscaling:** The module includes application autoscaling with CPU-based target tracking (default 60%) and optional request-count-based scaling. Tasks scale between `min_capacity` and `max_capacity` based on load.
+
+**Deployment behavior:**
+- **Single task (desired_count = 1):** Rolling updates cause downtime while the new task starts
+- **Multiple tasks (desired_count >= 2):** ECS drains connections from old tasks gracefully while new tasks come online; zero downtime
+
+**Cost impact:** Running 2 tasks instead of 1 doubles Fargate compute costs (~$30/month → ~$60/month for default sizing). This is offset by improved availability SLA.
+
+**Development vs Production:**
+- **Development:** `desired_count = 1` is acceptable to minimize cost
+- **Production:** `desired_count >= 2` is strongly recommended for HA
+
 ### Private Subnets and NAT Gateway
 
 Fargate tasks run in **private subnets** for security hardening and do not receive public IP addresses. Outbound connectivity to AWS services (ECR, Bedrock, S3) and the internet is provided through a **NAT gateway** or **VPC endpoints**.
