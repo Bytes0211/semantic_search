@@ -4,6 +4,9 @@ aws_region                        = "us-east-1"
 
 search_runtime                    = "fargate"
 embedding_backend                 = "bedrock"
+# IMPORTANT: FAISS is an in-memory vector store - each task loads its own copy from S3.
+# With desired_count > 1, ingestion updates affect only one task, causing inconsistent
+# search results. For multi-task HA, use "qdrant" or "pgvector" instead.
 vector_store                      = "faiss"
 ingestion_mode                    = "batch"
 
@@ -45,7 +48,9 @@ search_service_allowed_ingress_cidrs = [
 search_service_acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abcd1234-5678-90ef-ghij-klmnopqrstuv"
 
 # High Availability - run at least 2 tasks across 2 AZs (default_az_count = 2)
-# This ensures zero-downtime deployments and resilience to single-task/AZ failures
+# This ensures zero-downtime deployments and resilience to single-task failures.
+# Note: with create_nat_gateway=true a single NAT GW remains an egress SPOF;
+# set enable_interface_endpoints=true for full AZ-level egress resilience.
 search_service_desired_count = 2
 search_service_min_capacity       = 2
 search_service_max_capacity       = 6
