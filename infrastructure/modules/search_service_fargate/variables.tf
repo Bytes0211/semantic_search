@@ -343,14 +343,3 @@ variable "waf_rule_groups" {
     { name = "AWSManagedRulesKnownBadInputsRuleSet", priority = 2 }
   ]
 }
-
-variable "waf_scope" {
-  type        = string
-  description = "WAF scope - must be REGIONAL for ALB."
-  default     = "REGIONAL"
-
-  validation {
-    condition     = var.waf_scope == "REGIONAL"
-    error_message = "WAF scope must be REGIONAL for Application Load Balancers."
-  }
-}

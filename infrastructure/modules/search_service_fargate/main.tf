@@ -453,7 +453,7 @@ resource "aws_wafv2_web_acl" "this" {
   count = var.enable_waf ? 1 : 0
 
   name  = "${local.name_prefix}-waf"
-  scope = var.waf_scope
+  scope = "REGIONAL"
 
   default_action {
     allow {}
